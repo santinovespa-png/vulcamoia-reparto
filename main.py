@@ -180,7 +180,7 @@ async def set_estado(factura_id: int, request: Request):
     nuevo = body.get("estado")
 
     permisos = {
-        "admin":      ["pendiente", "en_envio"],
+        "admin":      ["pendiente", "en_envio", "en_camino", "entregado"],
         "repartidor": ["en_camino", "entregado"],
     }
     if nuevo not in permisos.get(user["role"], []):
@@ -205,6 +205,46 @@ async def upload_foto(factura_id: int, request: Request, foto: UploadFile = File
     b64  = base64.b64encode(content).decode()
     db.save_foto(factura_id, f"data:{mime};base64,{b64}")
     return {"ok": True}
+
+
+@app.post("/api/factura")
+async def crear_factura_manual(request: Request):
+    """Crea una factura manualmente desde el panel admin."""
+    user = current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin")
+
+    body = await request.json()
+    cliente   = (body.get("cliente")   or "").strip()
+    domicilio = (body.get("domicilio") or "").strip()
+    numero    = (body.get("numero")    or "").strip()
+    fecha_val = (body.get("fecha")     or "").strip()
+    items     = body.get("items", [])
+
+    if not cliente or not domicilio:
+        raise HTTPException(status_code=400, detail="Cliente y domicilio son requeridos")
+
+    if not numero:
+        from datetime import datetime
+        numero = f"MANUAL-{datetime.now().strftime('%d%m%y-%H%M%S')}"
+
+    if db.factura_exists(numero):
+        raise HTTPException(status_code=409, detail=f"Ya existe la factura {numero}")
+
+    if not fecha_val:
+        fecha_val = date.today().strftime("%d/%m/%Y")
+
+    data = {
+        "numero":    numero,
+        "fecha":     fecha_val,
+        "cliente":   cliente,
+        "domicilio": domicilio,
+        "cuit":      "",
+        "vendedor":  VENDEDOR_ID,
+        "archivo":   "manual",
+    }
+    db.insert_factura(data, items)
+    return {"ok": True, "numero": numero}
 
 
 @app.get("/api/foto/{factura_id}")

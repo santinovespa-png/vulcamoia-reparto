@@ -412,6 +412,169 @@ body {
 }
 .modal-close:hover { background: rgba(255,255,255,.32); }
 
+/* ===== Estado pills (admin) ===== */
+.estado-pills {
+    display: flex;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+.estado-pill {
+    padding: .32rem .75rem;
+    border-radius: 20px;
+    border: 2px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--muted);
+    transition: all .18s;
+    white-space: nowrap;
+}
+.estado-pill:hover:not(:disabled) { filter: brightness(.95); transform: translateY(-1px); }
+.estado-pill:disabled { cursor: default; }
+
+.estado-pill.active.ep-pendiente { background: #f1f5f9; color: #475569;  border-color: #94a3b8; }
+.estado-pill.active.ep-envio      { background: #eff6ff; color: #2563eb;  border-color: #3b82f6; }
+.estado-pill.active.ep-camino     { background: #fffbeb; color: #d97706;  border-color: #f59e0b; }
+.estado-pill.active.ep-entregado  { background: #ecfdf5; color: #059669;  border-color: #10b981; }
+
+.ep-pendiente:hover:not(:disabled) { border-color: #94a3b8; color: #475569; }
+.ep-envio:hover:not(:disabled)      { border-color: #3b82f6; color: #2563eb; }
+.ep-camino:hover:not(:disabled)     { border-color: #f59e0b; color: #d97706; }
+.ep-entregado:hover:not(:disabled)  { border-color: #10b981; color: #059669; }
+
+/* ===== FAB button ===== */
+.fab-btn {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 58px; height: 58px;
+    background: linear-gradient(135deg, var(--accent), #818cf8);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    font-size: 2rem;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(99,102,241,.5);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: transform .22s, box-shadow .22s;
+}
+.fab-btn:hover {
+    transform: scale(1.12) rotate(90deg);
+    box-shadow: 0 6px 26px rgba(99,102,241,.6);
+}
+
+/* ===== Form modal (pedido manual) ===== */
+.form-modal-overlay {
+    align-items: flex-start;
+    padding: 1.5rem 1rem;
+    overflow-y: auto;
+}
+.form-modal-card {
+    background: #fff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 560px;
+    margin: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    animation: fadeUp .25s ease;
+    overflow: hidden;
+}
+.form-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+}
+.form-modal-header h2 { font-size: 1.1rem; font-weight: 800; }
+.form-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--muted);
+    cursor: pointer;
+    padding: .25rem .5rem;
+    border-radius: 6px;
+    transition: background .15s;
+}
+.form-modal-close:hover { background: var(--border); }
+
+.form-modal-body { padding: 1.5rem; }
+.form-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: .75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+@media (max-width: 480px) { .form-row-2 { grid-template-columns: 1fr; } }
+
+.form-modal-body .form-group { margin-bottom: 1rem; }
+.form-modal-body .form-group label {
+    display: block; font-weight: 700; margin-bottom: .35rem; font-size: .85rem;
+}
+.label-hint { font-weight: 400; color: var(--muted); font-size: .78rem; }
+.form-modal-body input[type="text"],
+.form-modal-body input[type="date"] {
+    width: 100%;
+    padding: .65rem .9rem;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: .95rem;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+    background: var(--bg);
+}
+.form-modal-body input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    background: #fff;
+}
+
+/* Item rows inside form */
+.form-item-row {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: .5rem;
+    align-items: center;
+    animation: slideIn .18s ease;
+}
+.form-item-row input[type="number"] { width: 72px; flex-shrink: 0; }
+.form-item-row input[type="text"]   { flex: 1; }
+.form-item-row .btn-remove {
+    background: #fee2e2;
+    border: none;
+    color: #ef4444;
+    border-radius: 8px;
+    width: 32px; height: 34px;
+    cursor: pointer;
+    font-size: .9rem;
+    flex-shrink: 0;
+    transition: background .15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.form-item-row .btn-remove:hover { background: #fca5a5; }
+
+.form-error {
+    background: #fff1f2;
+    color: #be123c;
+    border: 1.5px solid #fecdd3;
+    border-radius: 10px;
+    padding: .65rem .9rem;
+    font-size: .85rem;
+    font-weight: 600;
+    margin-top: .75rem;
+}
+
 .refresh-note { text-align: center; margin-top: 1.75rem; }
 
 /* ===== Delivery cards (repartidor) ===== */

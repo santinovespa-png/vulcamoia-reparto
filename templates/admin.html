@@ -102,23 +102,35 @@
                     {% endfor %}
                 </div>
 
-                <div class="factura-actions">
-                    {% if f.estado == 'pendiente' %}
-                        <button class="btn btn-envio" onclick="setEstado({{ f.id }}, 'en_envio', this)">
-                            📦 Marcar: En envío a Bs.As.
-                        </button>
-                    {% elif f.estado == 'en_envio' %}
-                        <button class="btn btn-secondary btn-sm" onclick="setEstado({{ f.id }}, 'pendiente', this)">
-                            ↩ Volver a pendiente
-                        </button>
-                        <span class="text-muted">Esperando al repartidor</span>
-                    {% elif f.estado == 'en_camino' %}
-                        <span class="status-info status-camino">🚗 Repartidor en camino</span>
-                    {% elif f.estado == 'entregado' %}
-                        <span class="status-info status-ok">
-                            ✅ Entregado{% if f.fecha_entregado %} — {{ f.fecha_entregado }}{% endif %}
-                        </span>
-                    {% endif %}
+                <!-- Estado actual -->
+                {% if f.estado == 'entregado' and f.fecha_entregado %}
+                <div class="status-info status-ok" style="margin-bottom:.6rem">
+                    ✅ Entregado — {{ f.fecha_entregado }}
+                </div>
+                {% endif %}
+
+                <!-- Pills: admin puede cambiar a cualquier estado -->
+                <div class="estado-pills">
+                    <button class="estado-pill ep-pendiente {% if f.estado == 'pendiente' %}active{% endif %}"
+                            onclick="setEstado({{ f.id }}, 'pendiente', this)"
+                            {% if f.estado == 'pendiente' %}disabled{% endif %}>
+                        Pendiente
+                    </button>
+                    <button class="estado-pill ep-envio {% if f.estado == 'en_envio' %}active{% endif %}"
+                            onclick="setEstado({{ f.id }}, 'en_envio', this)"
+                            {% if f.estado == 'en_envio' %}disabled{% endif %}>
+                        📦 En envío
+                    </button>
+                    <button class="estado-pill ep-camino {% if f.estado == 'en_camino' %}active{% endif %}"
+                            onclick="setEstado({{ f.id }}, 'en_camino', this)"
+                            {% if f.estado == 'en_camino' %}disabled{% endif %}>
+                        🚗 En camino
+                    </button>
+                    <button class="estado-pill ep-entregado {% if f.estado == 'entregado' %}active{% endif %}"
+                            onclick="setEstado({{ f.id }}, 'entregado', this)"
+                            {% if f.estado == 'entregado' %}disabled{% endif %}>
+                        ✅ Entregado
+                    </button>
                 </div>
 
                 {% if f.estado == 'entregado' %}
@@ -164,11 +176,70 @@
 
 </main>
 
+<!-- FAB: agregar pedido manual -->
+<button class="fab-btn" onclick="abrirFormPedido()" title="Agregar pedido manual">＋</button>
+
 <!-- Modal foto -->
 <div id="foto-modal" class="modal-overlay" style="display:none" onclick="cerrarModal()">
     <button class="modal-close" onclick="cerrarModal()">✕</button>
     <img id="foto-modal-img" class="modal-img" src="" alt="Foto remito"
          onclick="event.stopPropagation()">
+</div>
+
+<!-- Modal pedido manual -->
+<div id="form-modal" class="modal-overlay form-modal-overlay" style="display:none"
+     onclick="cerrarFormPedido(event)">
+    <div class="form-modal-card" onclick="event.stopPropagation()">
+
+        <div class="form-modal-header">
+            <h2>Nuevo pedido manual</h2>
+            <button class="form-modal-close" onclick="cerrarFormPedido()">✕</button>
+        </div>
+
+        <div class="form-modal-body">
+
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label>Número de factura
+                        <span class="label-hint">(vacío = automático)</span>
+                    </label>
+                    <input type="text" id="form-numero" placeholder="Ej: A0001-00000001">
+                </div>
+                <div class="form-group">
+                    <label>Fecha</label>
+                    <input type="date" id="form-fecha">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Cliente *</label>
+                <input type="text" id="form-cliente" placeholder="Nombre del cliente">
+            </div>
+
+            <div class="form-group">
+                <label>Domicilio de entrega *</label>
+                <input type="text" id="form-domicilio" placeholder="Calle, número, ciudad">
+            </div>
+
+            <div class="form-group">
+                <label>Artículos</label>
+                <div id="form-items"></div>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="agregarItem()" style="margin-top:.5rem">
+                    + Agregar artículo
+                </button>
+            </div>
+
+            <div id="form-error" class="form-error" style="display:none"></div>
+        </div>
+
+        <div class="form-modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarFormPedido()">Cancelar</button>
+            <button class="btn btn-envio" id="btn-guardar" onclick="guardarPedido()">
+                Guardar pedido
+            </button>
+        </div>
+    </div>
 </div>
 
 <script src="/static/app.js"></script>

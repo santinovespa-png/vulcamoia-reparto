@@ -134,6 +134,119 @@ document.addEventListener('keydown', e => {
 });
 
 // =========================================================
+//  FORM PEDIDO MANUAL
+// =========================================================
+function abrirFormPedido() {
+    // Setear fecha de hoy por defecto
+    const hoy = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+    document.getElementById('form-fecha').value = hoy;
+
+    // Limpiar campos
+    document.getElementById('form-numero').value    = '';
+    document.getElementById('form-cliente').value   = '';
+    document.getElementById('form-domicilio').value = '';
+    document.getElementById('form-items').innerHTML = '';
+    ocultarErrorForm();
+
+    // Agregar una fila de item vacia para arrancar
+    agregarItem();
+
+    document.getElementById('form-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('form-cliente').focus(), 100);
+}
+
+function cerrarFormPedido(e) {
+    if (e && e.target !== document.getElementById('form-modal')) return;
+    document.getElementById('form-modal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+function agregarItem() {
+    const container = document.getElementById('form-items');
+    const row = document.createElement('div');
+    row.className = 'form-item-row';
+    row.innerHTML = `
+        <input type="number" class="item-cant" placeholder="Cant." min="1" value="1"
+               style="width:72px">
+        <input type="text" class="item-det" placeholder="Descripción del artículo">
+        <button type="button" class="btn-remove" onclick="this.closest('.form-item-row').remove()"
+                title="Quitar">✕</button>
+    `;
+    container.appendChild(row);
+    row.querySelector('.item-det').focus();
+}
+
+function ocultarErrorForm() {
+    const el = document.getElementById('form-error');
+    el.style.display = 'none';
+    el.textContent   = '';
+}
+
+function mostrarErrorForm(msg) {
+    const el = document.getElementById('form-error');
+    el.textContent   = msg;
+    el.style.display = 'block';
+}
+
+async function guardarPedido() {
+    ocultarErrorForm();
+
+    const cliente   = document.getElementById('form-cliente').value.trim();
+    const domicilio = document.getElementById('form-domicilio').value.trim();
+    const numero    = document.getElementById('form-numero').value.trim();
+    const fechaISO  = document.getElementById('form-fecha').value; // YYYY-MM-DD
+
+    if (!cliente)   { mostrarErrorForm('El nombre del cliente es obligatorio.'); return; }
+    if (!domicilio) { mostrarErrorForm('El domicilio es obligatorio.'); return; }
+
+    // Convertir fecha YYYY-MM-DD → DD/MM/YYYY para la DB
+    let fecha = '';
+    if (fechaISO) {
+        const [y, m, d] = fechaISO.split('-');
+        fecha = `${d}/${m}/${y}`;
+    }
+
+    // Recolectar items
+    const items = [];
+    document.querySelectorAll('#form-items .form-item-row').forEach(row => {
+        const cant = parseInt(row.querySelector('.item-cant').value) || 0;
+        const det  = row.querySelector('.item-det').value.trim();
+        if (det && cant > 0) {
+            items.push({ cantidad: cant, detalle: det, precio_unit: 0, precio_total: 0 });
+        }
+    });
+
+    const btn = document.getElementById('btn-guardar');
+    btn.disabled   = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+        const res = await fetch('/api/factura', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ numero, cliente, domicilio, fecha, items }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+            document.getElementById('form-modal').style.display = 'none';
+            document.body.style.overflow = '';
+            location.reload();
+        } else {
+            mostrarErrorForm(data.detail || 'Error al guardar el pedido.');
+            btn.disabled    = false;
+            btn.textContent = 'Guardar pedido';
+        }
+    } catch {
+        mostrarErrorForm('Error de conexión. Verificá que el servidor esté activo.');
+        btn.disabled    = false;
+        btn.textContent = 'Guardar pedido';
+    }
+}
+
+// =========================================================
 //  NAVEGACION DE FECHA (panel admin)
 // =========================================================
 function irAFecha(fecha) {
