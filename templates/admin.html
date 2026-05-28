@@ -77,7 +77,7 @@
             </div>
 
             <div class="factura-items">
-                {% for item in f.items %}
+                {% for item in f['items'] %}
                 <div class="item-row">
                     <span class="item-qty">{{ item.cantidad }}x</span>
                     <span class="item-detalle">{{ item.detalle }}</span>

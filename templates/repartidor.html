@@ -47,7 +47,7 @@
         </a>
 
         <div class="delivery-items">
-            {% for item in f.items %}
+            {% for item in f['items'] %}
             <div class="delivery-item-row">
                 <span class="delivery-qty">{{ item.cantidad }}</span>
                 <span class="delivery-detalle">{{ item.detalle }}</span>
@@ -92,7 +92,7 @@
         <div class="entregada-item">
             <div class="entregada-cliente">{{ f.cliente }}</div>
             <div class="entregada-domicilio">📍 {{ f.domicilio }}</div>
-            {% for item in f.items %}
+            {% for item in f['items'] %}
             <div class="delivery-item-row small">
                 <span class="delivery-qty small">{{ item.cantidad }}</span>
                 <span class="delivery-detalle small">{{ item.detalle }}</span>

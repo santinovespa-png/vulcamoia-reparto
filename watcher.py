@@ -120,9 +120,9 @@ def enviar(data: dict, items: list) -> bool:
         if r.status_code == 200:
             resp = r.json()
             if resp.get("importada"):
-                print(f"  ✓ Importada: {data['numero']} — {data['cliente']}")
+                print(f"  [OK] Importada: {data['numero']} - {data['cliente']}")
             else:
-                print(f"  · Ya existía: {data['numero']}")
+                print(f"  [--] Ya existia: {data['numero']}")
             return True
         else:
             print(f"  ✗ Error del servidor ({r.status_code}): {r.text[:100]}")
@@ -166,6 +166,7 @@ def main():
     print(f"  Servidor: {RENDER_URL}")
     print(f"  Revisando cada {INTERVALO_SEG} segundos...")
     print("=" * 50)
+    print()
     print()
 
     # Validar que pdfplumber esté instalado
