@@ -16,7 +16,7 @@ import requests
 # ============================================================
 #  CONFIGURACION
 # ============================================================
-RENDER_URL      = "https://TU-APP.onrender.com"        # <-- cambiar después del deploy
+RENDER_URL      = "https://vulcamoia-reparto.onrender.com"
 API_KEY         = "vulcamoia-api-key-2024"              # <-- debe coincidir con Render
 FACTURAS_FOLDER = r"\\central\omicrom\Sistema Toyo\FACTURAS"
 VENDEDOR_ID     = 197
