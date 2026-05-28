@@ -1,7 +1,6 @@
 """
 WATCHER LOCAL - corre en la PC de la oficina
-Monitorea la carpeta de facturas y envia al servidor en Render.
-Procesa facturas de los ultimos 7 dias (para que el historial funcione).
+Monitorea la carpeta de facturas y envia SOLO LAS DE HOY al servidor en Render.
 El servidor deduplica automaticamente.
 
 Requisitos: pip install pdfplumber requests
@@ -9,7 +8,7 @@ Requisitos: pip install pdfplumber requests
 
 import re
 import time
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import requests
@@ -22,14 +21,13 @@ API_KEY         = "vulcamoia-api-key-2024"
 FACTURAS_FOLDER = r"\\central\omicrom\Sistema Toyo\FACTURAS"
 VENDEDOR_ID     = 197
 INTERVALO_SEG   = 30    # segundos entre escaneos
-DIAS_ATRAS      = 7     # cuantos dias hacia atras procesar
 # ============================================================
 
 
-def es_reciente(path: Path) -> bool:
-    """True si el archivo fue modificado/creado en los ultimos DIAS_ATRAS dias."""
+def es_de_hoy(path: Path) -> bool:
+    """True si el archivo fue modificado/creado hoy."""
     mtime = date.fromtimestamp(path.stat().st_mtime)
-    return mtime >= date.today() - timedelta(days=DIAS_ATRAS)
+    return mtime >= date.today()
 
 
 # ---- Parser integrado ----
@@ -127,13 +125,13 @@ def ciclo():
         return
 
     pdfs = sorted(folder.glob("*.PDF")) + sorted(folder.glob("*.pdf"))
-    recientes = [p for p in pdfs if es_reciente(p)]
+    de_hoy = [p for p in pdfs if es_de_hoy(p)]
 
-    if not recientes:
-        print("  (sin archivos recientes)")
+    if not de_hoy:
+        print("  (sin facturas de hoy)")
         return
 
-    for pdf in recientes:
+    for pdf in de_hoy:
         data, items = parsear_pdf(pdf)
 
         if not data or data.get("vendedor") != VENDEDOR_ID:
@@ -148,7 +146,7 @@ def main():
     print(f"  Carpeta : {FACTURAS_FOLDER}")
     print(f"  Servidor: {RENDER_URL}")
     print(f"  Vendedor: {VENDEDOR_ID}")
-    print(f"  Escanea cada {INTERVALO_SEG}s | ultimos {DIAS_ATRAS} dias")
+    print(f"  Escanea cada {INTERVALO_SEG}s | solo facturas de hoy")
     print("=" * 52)
     print()
 
