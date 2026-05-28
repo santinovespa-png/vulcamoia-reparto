@@ -1,14 +1,15 @@
 """
 WATCHER LOCAL - corre en la PC de la oficina
-Monitorea la carpeta de facturas y envía las de HOY a la web en Render.
+Monitorea la carpeta de facturas y envia al servidor en Render.
+Procesa facturas de los ultimos 7 dias (para que el historial funcione).
+El servidor deduplica automaticamente.
 
 Requisitos: pip install pdfplumber requests
 """
 
-import json
 import re
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -17,34 +18,21 @@ import requests
 #  CONFIGURACION
 # ============================================================
 RENDER_URL      = "https://vulcamoia-reparto.onrender.com"
-API_KEY         = "vulcamoia-api-key-2024"              # <-- debe coincidir con Render
+API_KEY         = "vulcamoia-api-key-2024"
 FACTURAS_FOLDER = r"\\central\omicrom\Sistema Toyo\FACTURAS"
 VENDEDOR_ID     = 197
-INTERVALO_SEG   = 30   # cada cuántos segundos escanea
-ENVIADOS_FILE   = Path(__file__).parent / "enviados_hoy.json"
+INTERVALO_SEG   = 30    # segundos entre escaneos
+DIAS_ATRAS      = 7     # cuantos dias hacia atras procesar
 # ============================================================
 
 
-def cargar_enviados() -> set:
-    try:
-        with open(ENVIADOS_FILE) as f:
-            return set(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return set()
-
-
-def guardar_enviados(enviados: set):
-    with open(ENVIADOS_FILE, "w") as f:
-        json.dump(list(enviados), f)
-
-
-def es_de_hoy(path: Path) -> bool:
-    """Devuelve True si el archivo fue modificado/creado hoy."""
+def es_reciente(path: Path) -> bool:
+    """True si el archivo fue modificado/creado en los ultimos DIAS_ATRAS dias."""
     mtime = date.fromtimestamp(path.stat().st_mtime)
-    return mtime >= date.today()
+    return mtime >= date.today() - timedelta(days=DIAS_ATRAS)
 
 
-# ---- Parser integrado (no depende del main.py del servidor) ----
+# ---- Parser integrado ----
 
 def _extraer_items(text: str) -> list:
     items = []
@@ -88,11 +76,11 @@ def parsear_pdf(pdf_path: Path):
         m = re.search(patron, text)
         return m.group(1).strip() if m else ""
 
-    numero   = buscar(r'FACTURA\s+N[º°o]\s+([A-Z0-9\-]+)')
-    fecha    = buscar(r'FECHA:\s+(\d{2}/\d{2}/\d{4})')
-    cliente  = buscar(r'Se[ñn]or/es:\s+(.+)')
-    domicilio= buscar(r'Domicilio:\s+(.+)')
-    cuit     = buscar(r'CUIT/DNI:\s+(\d+)')
+    numero    = buscar(r'FACTURA\s+N[oº°]\s+([A-Z0-9\-]+)')
+    fecha     = buscar(r'FECHA:\s+(\d{2}/\d{2}/\d{4})')
+    cliente   = buscar(r'Se[ñn]or/es:\s+(.+)')
+    domicilio = buscar(r'Domicilio:\s+(.+)')
+    cuit      = buscar(r'CUIT/DNI:\s+(\d+)')
 
     m = re.search(r'VENDEDOR\s+(\d+)', text)
     vendedor = int(m.group(1)) if m else None
@@ -125,66 +113,58 @@ def enviar(data: dict, items: list) -> bool:
                 print(f"  [--] Ya existia: {data['numero']}")
             return True
         else:
-            print(f"  ✗ Error del servidor ({r.status_code}): {r.text[:100]}")
+            print(f"  [ERR] Servidor ({r.status_code}): {r.text[:100]}")
             return False
     except requests.RequestException as e:
-        print(f"  ✗ Sin conexión: {e}")
+        print(f"  [ERR] Sin conexion: {e}")
         return False
 
 
-def ciclo(enviados: set) -> set:
+def ciclo():
     folder = Path(FACTURAS_FOLDER)
     if not folder.exists():
-        print(f"  ⚠ Carpeta no accesible: {folder}")
-        return enviados
+        print(f"  [!] Carpeta no accesible: {folder}")
+        return
 
-    for pdf in sorted(folder.glob("*.PDF")) + sorted(folder.glob("*.pdf")):
-        if pdf.name in enviados:
-            continue
+    pdfs = sorted(folder.glob("*.PDF")) + sorted(folder.glob("*.pdf"))
+    recientes = [p for p in pdfs if es_reciente(p)]
 
-        if not es_de_hoy(pdf):
-            enviados.add(pdf.name)   # marcar como "vieja, no procesar"
-            continue
+    if not recientes:
+        print("  (sin archivos recientes)")
+        return
 
+    for pdf in recientes:
         data, items = parsear_pdf(pdf)
 
         if not data or data.get("vendedor") != VENDEDOR_ID:
-            enviados.add(pdf.name)
             continue
 
-        if enviar(data, items):
-            enviados.add(pdf.name)
-            guardar_enviados(enviados)
-
-    return enviados
+        enviar(data, items)
 
 
 def main():
-    print("=" * 50)
+    print("=" * 52)
     print("  Vulcamoia - Watcher de Facturas")
     print(f"  Carpeta : {FACTURAS_FOLDER}")
     print(f"  Servidor: {RENDER_URL}")
-    print(f"  Revisando cada {INTERVALO_SEG} segundos...")
-    print("=" * 50)
-    print()
+    print(f"  Vendedor: {VENDEDOR_ID}")
+    print(f"  Escanea cada {INTERVALO_SEG}s | ultimos {DIAS_ATRAS} dias")
+    print("=" * 52)
     print()
 
-    # Validar que pdfplumber esté instalado
     try:
-        import pdfplumber
+        import pdfplumber  # noqa
     except ImportError:
         print("ERROR: falta instalar pdfplumber.")
-        print("Ejecutá: pip install pdfplumber requests")
+        print("Ejecuta: pip install pdfplumber requests")
         return
-
-    enviados = cargar_enviados()
 
     while True:
         print(f"[{date.today()}] Escaneando...")
         try:
-            enviados = ciclo(enviados)
+            ciclo()
         except Exception as e:
-            print(f"  Error inesperado: {e}")
+            print(f"  [ERR] Error inesperado: {e}")
         time.sleep(INTERVALO_SEG)
 
 

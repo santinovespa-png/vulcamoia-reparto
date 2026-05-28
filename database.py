@@ -26,6 +26,7 @@ def init_db():
             fecha_en_envio    TEXT,
             fecha_en_camino   TEXT,
             fecha_entregado   TEXT,
+            foto_remito       TEXT,
             created_at        TEXT DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -45,6 +46,12 @@ def init_db():
         );
     """)
     conn.commit()
+    # Migracion: agregar columna foto_remito si no existe
+    try:
+        conn.execute("ALTER TABLE facturas ADD COLUMN foto_remito TEXT")
+        conn.commit()
+    except Exception:
+        pass
     conn.close()
 
 
@@ -101,9 +108,16 @@ def insert_factura(data, items):
         conn.close()
 
 
-def get_facturas(vendedor=None, estados=None):
+def get_facturas(vendedor=None, estados=None, fecha=None):
     conn = get_db()
-    query = "SELECT * FROM facturas WHERE 1=1"
+    # Devuelve has_foto (bool) en lugar del blob completo para no cargar la pagina
+    query = """
+        SELECT id, numero_factura, fecha, cliente, domicilio, cuit, vendedor,
+               archivo, estado, fecha_en_envio, fecha_en_camino, fecha_entregado,
+               (foto_remito IS NOT NULL AND foto_remito != '') as has_foto,
+               created_at
+        FROM facturas WHERE 1=1
+    """
     params = []
 
     if vendedor is not None:
@@ -115,10 +129,29 @@ def get_facturas(vendedor=None, estados=None):
         query += f" AND estado IN ({placeholders})"
         params.extend(estados)
 
-    query += " ORDER BY fecha DESC, created_at DESC"
+    if fecha:
+        # fecha debe ser 'YYYY-MM-DD'; created_at esta en UTC pero sirve para filtrar
+        query += " AND DATE(created_at) = ?"
+        params.append(fecha)
+
+    query += " ORDER BY created_at DESC"
     rows = conn.execute(query, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def save_foto(factura_id: int, data_url: str):
+    conn = get_db()
+    conn.execute("UPDATE facturas SET foto_remito = ? WHERE id = ?", (data_url, factura_id))
+    conn.commit()
+    conn.close()
+
+
+def get_foto(factura_id: int):
+    conn = get_db()
+    row = conn.execute("SELECT foto_remito FROM facturas WHERE id = ?", (factura_id,)).fetchone()
+    conn.close()
+    return row["foto_remito"] if row else None
 
 
 def get_items(factura_id):

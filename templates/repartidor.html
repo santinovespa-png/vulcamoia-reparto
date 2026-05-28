@@ -33,6 +33,26 @@
     {% for f in facturas %}
     <div class="delivery-card delivery-{{ f.estado }}" id="card-{{ f.id }}">
 
+        <!-- Progress steps -->
+        <div class="progress-steps">
+            <div class="step done">
+                <div class="step-dot"></div>
+                <div class="step-label">Pendiente</div>
+            </div>
+            <div class="step {% if f.estado in ['en_camino', 'entregado'] %}done{% elif f.estado == 'en_envio' %}active{% endif %}">
+                <div class="step-dot"></div>
+                <div class="step-label">En envío</div>
+            </div>
+            <div class="step {% if f.estado == 'entregado' %}done{% elif f.estado == 'en_camino' %}active{% endif %}">
+                <div class="step-dot"></div>
+                <div class="step-label">En camino</div>
+            </div>
+            <div class="step {% if f.estado == 'entregado' %}done{% endif %}">
+                <div class="step-dot"></div>
+                <div class="step-label">Entregado</div>
+            </div>
+        </div>
+
         <div class="delivery-top">
             <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
             <span class="factura-num">{{ f.numero_factura }}</span>
@@ -60,7 +80,6 @@
             <button class="btn-big btn-camino" onclick="setEstado({{ f.id }}, 'en_camino', this)">
                 🚗 &nbsp;Salí a entregar
             </button>
-
             {% elif f.estado == 'en_camino' %}
             <button class="btn-big btn-entregado" onclick="setEstado({{ f.id }}, 'entregado', this)">
                 ✅ &nbsp;Marcar como entregado
@@ -74,18 +93,19 @@
     {% else %}
 
     <div class="empty-state">
-        <div class="empty-icon">🎉</div>
+        <span class="empty-icon">🎉</span>
         <h2>¡Todo al día!</h2>
-        <p>No hay entregas pendientes por ahora.<br>La oficina todavía no marcó ninguna en envío.</p>
-        <a href="/repartidor" class="btn btn-secondary" style="margin-top:1rem">Actualizar</a>
+        <p>No hay entregas pendientes.<br>La oficina todavía no marcó ninguna en envío.</p>
+        <a href="/repartidor" class="btn btn-secondary" style="margin-top:1.25rem">Actualizar</a>
     </div>
 
     {% endif %}
 
+    <!-- Entregados del día -->
     {% if entregadas %}
     <details class="entregadas-section">
         <summary>
-            Entregados hoy
+            ✅ Entregados hoy
             <span class="count-badge count-ok">{{ entregadas | length }}</span>
         </summary>
         {% for f in entregadas %}
@@ -93,18 +113,42 @@
             <div class="entregada-cliente">{{ f.cliente }}</div>
             <div class="entregada-domicilio">📍 {{ f.domicilio }}</div>
             {% for item in f['items'] %}
-            <div class="delivery-item-row small">
+            <div class="delivery-item-row">
                 <span class="delivery-qty small">{{ item.cantidad }}</span>
                 <span class="delivery-detalle small">{{ item.detalle }}</span>
             </div>
             {% endfor %}
             <div class="entregada-time">✅ {{ f.fecha_entregado or '' }}</div>
+
+            <!-- Foto remito -->
+            <div class="repartidor-foto-section" id="foto-sec-{{ f.id }}">
+                {% if f.has_foto %}
+                <div class="foto-thumb-wrapper">
+                    <img class="foto-thumb" src="/api/foto/{{ f.id }}"
+                         alt="Remito" onclick="verFoto(this.src)">
+                    <span class="foto-ok">✓ Remito guardado</span>
+                </div>
+                {% else %}
+                <label class="foto-upload-label">
+                    📷 Sacar foto del remito firmado
+                    <input type="file" accept="image/*" capture="environment"
+                           onchange="subirFoto({{ f.id }}, this)">
+                </label>
+                {% endif %}
+            </div>
         </div>
         {% endfor %}
     </details>
     {% endif %}
 
 </main>
+
+<!-- Modal foto -->
+<div id="foto-modal" class="modal-overlay" style="display:none" onclick="cerrarModal()">
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+    <img id="foto-modal-img" class="modal-img" src="" alt="Foto remito"
+         onclick="event.stopPropagation()">
+</div>
 
 <script src="/static/app.js"></script>
 </body>

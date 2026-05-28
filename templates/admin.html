@@ -24,7 +24,6 @@
 
 <main class="container">
 
-
     <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
@@ -49,84 +48,128 @@
         </div>
     </div>
 
-    <!-- Filtros -->
-    <div class="filter-bar">
-        <button class="filter-btn active" data-filter="all">Todos</button>
-        <button class="filter-btn" data-filter="pendiente">Pendientes</button>
-        <button class="filter-btn" data-filter="en_envio">En envío</button>
-        <button class="filter-btn" data-filter="en_camino">En camino</button>
-        <button class="filter-btn" data-filter="entregado">Entregados</button>
+    <!-- Toolbar: fecha + filtros -->
+    <div class="toolbar">
+        <div class="date-nav">
+            <button class="date-nav-btn" onclick="navegarFecha(-1)" title="Día anterior">‹</button>
+            <input type="date" id="fecha-input" value="{{ fecha }}" onchange="irAFecha(this.value)">
+            <button class="date-nav-btn" onclick="navegarFecha(1)" title="Día siguiente">›</button>
+            {% if fecha != fecha_hoy %}
+            <button class="date-today-btn" onclick="irAFecha('{{ fecha_hoy }}')">Hoy</button>
+            {% endif %}
+        </div>
+        <div class="filter-bar">
+            <button class="filter-btn active" data-filter="all">Todos</button>
+            <button class="filter-btn" data-filter="pendiente">Pendientes</button>
+            <button class="filter-btn" data-filter="en_envio">En envío</button>
+            <button class="filter-btn" data-filter="en_camino">En camino</button>
+            <button class="filter-btn" data-filter="entregado">Entregados</button>
+        </div>
     </div>
 
     <!-- Lista de facturas -->
     <div class="facturas-list" id="facturas-list">
         {% for f in facturas %}
-        <div class="factura-card" data-estado="{{ f.estado }}" data-id="{{ f.id }}">
+        <div class="factura-card" data-estado="{{ f.estado }}" data-id="{{ f.id }}"
+             style="animation-delay:{{ loop.index0 * 0.06 }}s">
+            <div class="factura-card-inner">
 
-            <div class="factura-header">
-                <div class="factura-meta">
-                    <span class="factura-numero">{{ f.numero_factura }}</span>
-                    <span class="factura-fecha">{{ f.fecha }}</span>
+                <div class="factura-header">
+                    <div class="factura-meta">
+                        <span class="factura-numero">{{ f.numero_factura }}</span>
+                        <span class="factura-fecha">{{ f.fecha }}</span>
+                    </div>
+                    <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
                 </div>
-                <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
-            </div>
 
-            <div class="factura-cliente">
-                <div class="cliente-nombre">{{ f.cliente }}</div>
-                <div class="cliente-domicilio">📍 {{ f.domicilio }}</div>
-            </div>
-
-            <div class="factura-items">
-                {% for item in f['items'] %}
-                <div class="item-row">
-                    <span class="item-qty">{{ item.cantidad }}x</span>
-                    <span class="item-detalle">{{ item.detalle }}</span>
+                <div class="factura-cliente">
+                    <div class="cliente-nombre">{{ f.cliente }}</div>
+                    <div class="cliente-domicilio">
+                        📍 <a href="https://maps.google.com/maps?q={{ f.domicilio | urlencode }}" target="_blank">
+                            {{ f.domicilio }}
+                        </a>
+                    </div>
                 </div>
-                {% else %}
-                <span class="text-muted">Sin items</span>
-                {% endfor %}
-            </div>
 
-            <div class="factura-actions">
-                {% if f.estado == 'pendiente' %}
-                    <button class="btn btn-envio" onclick="setEstado({{ f.id }}, 'en_envio', this)">
-                        📦 Marcar: En envío a Bs.As.
-                    </button>
+                <div class="factura-items">
+                    {% for item in f['items'] %}
+                    <div class="item-row">
+                        <span class="item-qty">{{ item.cantidad }}×</span>
+                        <span class="item-detalle">{{ item.detalle }}</span>
+                    </div>
+                    {% else %}
+                    <span class="text-muted">Sin items</span>
+                    {% endfor %}
+                </div>
 
-                {% elif f.estado == 'en_envio' %}
-                    <button class="btn btn-secondary btn-sm" onclick="setEstado({{ f.id }}, 'pendiente', this)">
-                        ↩ Volver a pendiente
-                    </button>
-                    <span class="text-muted">Esperando al repartidor</span>
+                <div class="factura-actions">
+                    {% if f.estado == 'pendiente' %}
+                        <button class="btn btn-envio" onclick="setEstado({{ f.id }}, 'en_envio', this)">
+                            📦 Marcar: En envío a Bs.As.
+                        </button>
+                    {% elif f.estado == 'en_envio' %}
+                        <button class="btn btn-secondary btn-sm" onclick="setEstado({{ f.id }}, 'pendiente', this)">
+                            ↩ Volver a pendiente
+                        </button>
+                        <span class="text-muted">Esperando al repartidor</span>
+                    {% elif f.estado == 'en_camino' %}
+                        <span class="status-info status-camino">🚗 Repartidor en camino</span>
+                    {% elif f.estado == 'entregado' %}
+                        <span class="status-info status-ok">
+                            ✅ Entregado{% if f.fecha_entregado %} — {{ f.fecha_entregado }}{% endif %}
+                        </span>
+                    {% endif %}
+                </div>
 
-                {% elif f.estado == 'en_camino' %}
-                    <span class="status-info status-camino">🚗 Repartidor en camino</span>
-
-                {% elif f.estado == 'entregado' %}
-                    <span class="status-info status-ok">✅ Entregado
-                        {% if f.fecha_entregado %} — {{ f.fecha_entregado }}{% endif %}
-                    </span>
+                {% if f.estado == 'entregado' %}
+                <div class="foto-section" id="foto-sec-{{ f.id }}">
+                    {% if f.has_foto %}
+                    <div class="foto-thumb-wrapper">
+                        <img class="foto-thumb" src="/api/foto/{{ f.id }}"
+                             alt="Remito firmado" onclick="verFoto(this.src)">
+                        <span class="foto-ok">✓ Remito fotografiado</span>
+                    </div>
+                    {% else %}
+                    <label class="foto-upload-label">
+                        📷 Subir foto del remito
+                        <input type="file" accept="image/*" onchange="subirFoto({{ f.id }}, this)">
+                    </label>
+                    {% endif %}
+                </div>
                 {% endif %}
-            </div>
 
+            </div>
         </div>
         {% endfor %}
 
         {% if not facturas %}
         <div class="empty-state">
-            <div class="empty-icon">📂</div>
+            <span class="empty-icon">📂</span>
             <h2>Sin facturas</h2>
-            <p>No se encontraron facturas para el vendedor {{ vendedor_id }}.</p>
-            <p class="text-muted">Verificá que la ruta de la carpeta esté bien configurada en <code>config.py</code>.</p>
+            {% if fecha == fecha_hoy %}
+            <p>No hay facturas para el vendedor {{ vendedor_id }} hoy.</p>
+            <p class="text-muted" style="margin-top:.5rem">
+                Verificá que el watcher esté corriendo en la PC de la oficina.
+            </p>
+            {% else %}
+            <p>No hay facturas registradas para esta fecha.</p>
+            {% endif %}
         </div>
         {% endif %}
     </div>
 
     <div class="refresh-note">
-        <a href="/admin" class="btn btn-secondary btn-sm">🔄 Actualizar y buscar nuevas facturas</a>
+        <a href="/admin?fecha={{ fecha }}" class="btn btn-secondary btn-sm">🔄 Actualizar</a>
     </div>
 
 </main>
+
+<!-- Modal foto -->
+<div id="foto-modal" class="modal-overlay" style="display:none" onclick="cerrarModal()">
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+    <img id="foto-modal-img" class="modal-img" src="" alt="Foto remito"
+         onclick="event.stopPropagation()">
+</div>
 
 <script src="/static/app.js"></script>
 </body>

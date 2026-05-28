@@ -1,9 +1,10 @@
+import base64
+from datetime import date
 from pathlib import Path
 from urllib.parse import quote
-import os
 
-from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -11,7 +12,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from config import API_KEY, SECRET_KEY, USERS, VENDEDOR_ID
 import database as db
 
-# Directorio base del proyecto
 BASE_DIR = Path(__file__).parent
 
 app = FastAPI(title="Vulcamoia - Reparto Buenos Aires")
@@ -23,7 +23,7 @@ templates.env.filters["urlencode"] = lambda s: quote(str(s))
 
 ESTADO_LABELS = {
     "pendiente": "Pendiente",
-    "en_envio": "En envío a Bs.As.",
+    "en_envio":  "En envío a Bs.As.",
     "en_camino": "En camino",
     "entregado": "Entregado",
 }
@@ -84,20 +84,24 @@ async def logout(request: Request):
 
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_view(request: Request):
+async def admin_view(request: Request, fecha: str = None):
     user = current_user(request)
     if not user or user["role"] != "admin":
         return RedirectResponse("/login", status_code=303)
 
-    facturas = db.get_facturas(vendedor=VENDEDOR_ID)
+    hoy = date.today().isoformat()
+    if fecha is None:
+        fecha = hoy
+
+    facturas = db.get_facturas(vendedor=VENDEDOR_ID, fecha=fecha)
     for f in facturas:
         f["items"] = db.get_items(f["id"])
         f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
 
     stats = {
-        "total": len(facturas),
+        "total":     len(facturas),
         "pendiente": sum(1 for f in facturas if f["estado"] == "pendiente"),
-        "en_envio": sum(1 for f in facturas if f["estado"] == "en_envio"),
+        "en_envio":  sum(1 for f in facturas if f["estado"] == "en_envio"),
         "en_camino": sum(1 for f in facturas if f["estado"] == "en_camino"),
         "entregado": sum(1 for f in facturas if f["estado"] == "entregado"),
     }
@@ -105,11 +109,13 @@ async def admin_view(request: Request):
     return templates.TemplateResponse(
         "admin.html",
         {
-            "request": request,
-            "facturas": facturas,
-            "user": user,
+            "request":    request,
+            "facturas":   facturas,
+            "user":       user,
             "vendedor_id": VENDEDOR_ID,
-            "stats": stats,
+            "stats":      stats,
+            "fecha":      fecha,
+            "fecha_hoy":  hoy,
         },
     )
 
@@ -132,21 +138,20 @@ async def repartidor_view(request: Request):
     return templates.TemplateResponse(
         "repartidor.html",
         {
-            "request": request,
-            "facturas": pendientes,
+            "request":   request,
+            "facturas":  pendientes,
             "entregadas": entregadas,
-            "user": user,
+            "user":      user,
         },
     )
 
 
 # ---------------------------------------------------------------------------
-# API — usada por el watcher local y por el JS del frontend
+# API — watcher local y JS del frontend
 # ---------------------------------------------------------------------------
 
 @app.post("/api/importar")
 async def importar_factura(request: Request):
-    """Recibe datos de una factura desde el watcher local."""
     key = request.headers.get("X-API-Key", "")
     if key != API_KEY:
         raise HTTPException(status_code=403, detail="API key inválida")
@@ -183,3 +188,37 @@ async def set_estado(factura_id: int, request: Request):
 
     db.update_estado(factura_id, nuevo)
     return {"ok": True, "estado": nuevo, "label": ESTADO_LABELS.get(nuevo, nuevo)}
+
+
+@app.post("/api/foto/{factura_id}")
+async def upload_foto(factura_id: int, request: Request, foto: UploadFile = File(...)):
+    """Sube foto del remito firmado (base64 en SQLite)."""
+    user = current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autenticado")
+
+    content = await foto.read()
+    if len(content) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Foto demasiado grande (máx. 15 MB)")
+
+    mime = foto.content_type or "image/jpeg"
+    b64  = base64.b64encode(content).decode()
+    db.save_foto(factura_id, f"data:{mime};base64,{b64}")
+    return {"ok": True}
+
+
+@app.get("/api/foto/{factura_id}")
+async def get_foto_endpoint(factura_id: int, request: Request):
+    """Devuelve la foto del remito como imagen."""
+    user = current_user(request)
+    if not user:
+        raise HTTPException(status_code=401)
+
+    foto_data = db.get_foto(factura_id)
+    if not foto_data:
+        raise HTTPException(status_code=404, detail="Sin foto")
+
+    header, data = foto_data.split(",", 1)
+    mime    = header.split(":")[1].split(";")[0]
+    content = base64.b64decode(data)
+    return Response(content=content, media_type=mime)
