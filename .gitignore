@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+cookies.txt
+enviados_hoy.json
+.env

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: vulcamoia-reparto
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: API_KEY
+        value: vulcamoia-api-key-2024
+      - key: VENDEDOR_ID
+        value: "197"
+      - key: ADMIN_PASSWORD
+        value: vulcamoia2024
+      - key: REPARTO_PASSWORD
+        value: reparto2024

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Entregas</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="repartidor-body">
+
+<header class="header">
+    <div class="header-content">
+        <div class="header-left">
+            <span class="header-icon">🚛</span>
+            <span class="header-title">Mis Entregas</span>
+        </div>
+        <div class="header-right">
+            <a href="/repartidor" class="btn btn-outline btn-sm">🔄</a>
+            <a href="/logout" class="btn btn-outline btn-sm">Salir</a>
+        </div>
+    </div>
+</header>
+
+<main class="container-narrow">
+
+    {% if facturas %}
+
+    <div class="section-title">
+        Para entregar
+        <span class="count-badge">{{ facturas | length }}</span>
+    </div>
+
+    {% for f in facturas %}
+    <div class="delivery-card delivery-{{ f.estado }}" id="card-{{ f.id }}">
+
+        <div class="delivery-top">
+            <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
+            <span class="factura-num">{{ f.numero_factura }}</span>
+        </div>
+
+        <div class="delivery-cliente">{{ f.cliente }}</div>
+
+        <a class="delivery-domicilio"
+           href="https://maps.google.com/maps?q={{ f.domicilio | urlencode }}"
+           target="_blank">
+            📍 {{ f.domicilio }}
+        </a>
+
+        <div class="delivery-items">
+            {% for item in f.items %}
+            <div class="delivery-item-row">
+                <span class="delivery-qty">{{ item.cantidad }}</span>
+                <span class="delivery-detalle">{{ item.detalle }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="delivery-actions">
+            {% if f.estado == 'en_envio' %}
+            <button class="btn-big btn-camino" onclick="setEstado({{ f.id }}, 'en_camino', this)">
+                🚗 &nbsp;Salí a entregar
+            </button>
+
+            {% elif f.estado == 'en_camino' %}
+            <button class="btn-big btn-entregado" onclick="setEstado({{ f.id }}, 'entregado', this)">
+                ✅ &nbsp;Marcar como entregado
+            </button>
+            {% endif %}
+        </div>
+
+    </div>
+    {% endfor %}
+
+    {% else %}
+
+    <div class="empty-state">
+        <div class="empty-icon">🎉</div>
+        <h2>¡Todo al día!</h2>
+        <p>No hay entregas pendientes por ahora.<br>La oficina todavía no marcó ninguna en envío.</p>
+        <a href="/repartidor" class="btn btn-secondary" style="margin-top:1rem">Actualizar</a>
+    </div>
+
+    {% endif %}
+
+    {% if entregadas %}
+    <details class="entregadas-section">
+        <summary>
+            Entregados hoy
+            <span class="count-badge count-ok">{{ entregadas | length }}</span>
+        </summary>
+        {% for f in entregadas %}
+        <div class="entregada-item">
+            <div class="entregada-cliente">{{ f.cliente }}</div>
+            <div class="entregada-domicilio">📍 {{ f.domicilio }}</div>
+            {% for item in f.items %}
+            <div class="delivery-item-row small">
+                <span class="delivery-qty small">{{ item.cantidad }}</span>
+                <span class="delivery-detalle small">{{ item.detalle }}</span>
+            </div>
+            {% endfor %}
+            <div class="entregada-time">✅ {{ f.fecha_entregado or '' }}</div>
+        </div>
+        {% endfor %}
+    </details>
+    {% endif %}
+
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

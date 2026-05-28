@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Oficina - Reparto BA</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="header">
+    <div class="header-content">
+        <div class="header-left">
+            <span class="header-icon">🚛</span>
+            <span class="header-title">Reparto Buenos Aires</span>
+            <span class="header-sub">Vendedor {{ vendedor_id }}</span>
+        </div>
+        <div class="header-right">
+            <span class="header-user">{{ user.display }}</span>
+            <a href="/logout" class="btn btn-outline btn-sm">Salir</a>
+        </div>
+    </div>
+</header>
+
+<main class="container">
+
+    {% if nuevas > 0 %}
+    <div class="alert alert-success">
+        ✅ Se importaron {{ nuevas }} factura{{ 's' if nuevas != 1 else '' }} nueva{{ 's' if nuevas != 1 else '' }}.
+    </div>
+    {% endif %}
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total }}</div>
+            <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-pendiente">{{ stats.pendiente }}</div>
+            <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-envio">{{ stats.en_envio }}</div>
+            <div class="stat-label">En envío</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-camino">{{ stats.en_camino }}</div>
+            <div class="stat-label">En camino</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-entregado">{{ stats.entregado }}</div>
+            <div class="stat-label">Entregados</div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all">Todos</button>
+        <button class="filter-btn" data-filter="pendiente">Pendientes</button>
+        <button class="filter-btn" data-filter="en_envio">En envío</button>
+        <button class="filter-btn" data-filter="en_camino">En camino</button>
+        <button class="filter-btn" data-filter="entregado">Entregados</button>
+    </div>
+
+    <!-- Lista de facturas -->
+    <div class="facturas-list" id="facturas-list">
+        {% for f in facturas %}
+        <div class="factura-card" data-estado="{{ f.estado }}" data-id="{{ f.id }}">
+
+            <div class="factura-header">
+                <div class="factura-meta">
+                    <span class="factura-numero">{{ f.numero_factura }}</span>
+                    <span class="factura-fecha">{{ f.fecha }}</span>
+                </div>
+                <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
+            </div>
+
+            <div class="factura-cliente">
+                <div class="cliente-nombre">{{ f.cliente }}</div>
+                <div class="cliente-domicilio">📍 {{ f.domicilio }}</div>
+            </div>
+
+            <div class="factura-items">
+                {% for item in f.items %}
+                <div class="item-row">
+                    <span class="item-qty">{{ item.cantidad }}x</span>
+                    <span class="item-detalle">{{ item.detalle }}</span>
+                </div>
+                {% else %}
+                <span class="text-muted">Sin items</span>
+                {% endfor %}
+            </div>
+
+            <div class="factura-actions">
+                {% if f.estado == 'pendiente' %}
+                    <button class="btn btn-envio" onclick="setEstado({{ f.id }}, 'en_envio', this)">
+                        📦 Marcar: En envío a Bs.As.
+                    </button>
+
+                {% elif f.estado == 'en_envio' %}
+                    <button class="btn btn-secondary btn-sm" onclick="setEstado({{ f.id }}, 'pendiente', this)">
+                        ↩ Volver a pendiente
+                    </button>
+                    <span class="text-muted">Esperando al repartidor</span>
+
+                {% elif f.estado == 'en_camino' %}
+                    <span class="status-info status-camino">🚗 Repartidor en camino</span>
+
+                {% elif f.estado == 'entregado' %}
+                    <span class="status-info status-ok">✅ Entregado
+                        {% if f.fecha_entregado %} — {{ f.fecha_entregado }}{% endif %}
+                    </span>
+                {% endif %}
+            </div>
+
+        </div>
+        {% endfor %}
+
+        {% if not facturas %}
+        <div class="empty-state">
+            <div class="empty-icon">📂</div>
+            <h2>Sin facturas</h2>
+            <p>No se encontraron facturas para el vendedor {{ vendedor_id }}.</p>
+            <p class="text-muted">Verificá que la ruta de la carpeta esté bien configurada en <code>config.py</code>.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="refresh-note">
+        <a href="/admin" class="btn btn-secondary btn-sm">🔄 Actualizar y buscar nuevas facturas</a>
+    </div>
+
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
