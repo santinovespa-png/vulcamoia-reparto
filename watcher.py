@@ -1,14 +1,17 @@
 """
 WATCHER LOCAL - corre en la PC de la oficina
-Monitorea la carpeta de facturas y envia SOLO LAS DE HOY al servidor en Render.
-El servidor deduplica automaticamente.
+Envia facturas de los ultimos DIAS_ATRAS dias al servidor en Render.
+El servidor deduplica automaticamente (no se duplican aunque se reenvien).
+
+Esto es necesario porque si Render reinicia, la base de datos se borra y
+el watcher la restaura automaticamente en la proxima pasada.
 
 Requisitos: pip install pdfplumber requests
 """
 
 import re
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -21,13 +24,14 @@ API_KEY         = "vulcamoia-api-key-2024"
 FACTURAS_FOLDER = r"\\central\omicrom\Sistema Toyo\FACTURAS"
 VENDEDOR_ID     = 197
 INTERVALO_SEG   = 30    # segundos entre escaneos
+DIAS_ATRAS      = 7     # cuantos dias hacia atras procesar (para restaurar tras reinicios)
 # ============================================================
 
 
-def es_de_hoy(path: Path) -> bool:
-    """True si el archivo fue modificado/creado hoy."""
+def es_reciente(path: Path) -> bool:
+    """True si el archivo fue modificado/creado en los ultimos DIAS_ATRAS dias."""
     mtime = date.fromtimestamp(path.stat().st_mtime)
-    return mtime >= date.today()
+    return mtime >= date.today() - timedelta(days=DIAS_ATRAS)
 
 
 # ---- Parser integrado ----
@@ -125,13 +129,13 @@ def ciclo():
         return
 
     pdfs = sorted(folder.glob("*.PDF")) + sorted(folder.glob("*.pdf"))
-    de_hoy = [p for p in pdfs if es_de_hoy(p)]
+    recientes = [p for p in pdfs if es_reciente(p)]
 
-    if not de_hoy:
-        print("  (sin facturas de hoy)")
+    if not recientes:
+        print("  (sin facturas recientes)")
         return
 
-    for pdf in de_hoy:
+    for pdf in recientes:
         data, items = parsear_pdf(pdf)
 
         if not data or data.get("vendedor") != VENDEDOR_ID:
@@ -146,7 +150,7 @@ def main():
     print(f"  Carpeta : {FACTURAS_FOLDER}")
     print(f"  Servidor: {RENDER_URL}")
     print(f"  Vendedor: {VENDEDOR_ID}")
-    print(f"  Escanea cada {INTERVALO_SEG}s | solo facturas de hoy")
+    print(f"  Escanea cada {INTERVALO_SEG}s | ultimos {DIAS_ATRAS} dias")
     print("=" * 52)
     print()
 

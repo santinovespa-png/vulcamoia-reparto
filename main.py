@@ -90,10 +90,26 @@ async def admin_view(request: Request, fecha: str = None):
         return RedirectResponse("/login", status_code=303)
 
     hoy = date.today().isoformat()
-    if fecha is None:
-        fecha = hoy
 
-    facturas = db.get_facturas(vendedor=VENDEDOR_ID, fecha=fecha)
+    if fecha is None:
+        # Vista por defecto: todos los pedidos activos (cualquier fecha)
+        # + los entregados de hoy
+        activos = db.get_facturas(
+            vendedor=VENDEDOR_ID,
+            estados=["pendiente", "en_envio", "en_camino"],
+        )
+        entregados_hoy = db.get_facturas(
+            vendedor=VENDEDOR_ID,
+            estados=["entregado"],
+            fecha=hoy,
+        )
+        facturas = activos + entregados_hoy
+        facturas.sort(key=lambda f: f["created_at"], reverse=True)
+        vista_activa = True
+    else:
+        facturas = db.get_facturas(vendedor=VENDEDOR_ID, fecha=fecha)
+        vista_activa = False
+
     for f in facturas:
         f["items"] = db.get_items(f["id"])
         f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
@@ -109,13 +125,14 @@ async def admin_view(request: Request, fecha: str = None):
     return templates.TemplateResponse(
         "admin.html",
         {
-            "request":    request,
-            "facturas":   facturas,
-            "user":       user,
-            "vendedor_id": VENDEDOR_ID,
-            "stats":      stats,
-            "fecha":      fecha,
-            "fecha_hoy":  hoy,
+            "request":      request,
+            "facturas":     facturas,
+            "user":         user,
+            "vendedor_id":  VENDEDOR_ID,
+            "stats":        stats,
+            "fecha":        fecha or hoy,
+            "fecha_hoy":    hoy,
+            "vista_activa": vista_activa,
         },
     )
 

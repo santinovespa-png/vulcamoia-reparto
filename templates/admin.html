@@ -54,8 +54,10 @@
             <button class="date-nav-btn" onclick="navegarFecha(-1)" title="Día anterior">‹</button>
             <input type="date" id="fecha-input" value="{{ fecha }}" onchange="irAFecha(this.value)">
             <button class="date-nav-btn" onclick="navegarFecha(1)" title="Día siguiente">›</button>
-            {% if fecha != fecha_hoy %}
-            <button class="date-today-btn" onclick="irAFecha('{{ fecha_hoy }}')">Hoy</button>
+            {% if vista_activa %}
+            <span class="date-active-badge">Vista activa</span>
+            {% else %}
+            <a href="/admin" class="date-today-btn">Vista activa</a>
             {% endif %}
         </div>
         <div class="filter-bar">
@@ -157,13 +159,14 @@
         {% if not facturas %}
         <div class="empty-state">
             <span class="empty-icon">📂</span>
-            <h2>Sin facturas</h2>
-            {% if fecha == fecha_hoy %}
-            <p>No hay facturas para el vendedor {{ vendedor_id }} hoy.</p>
+            {% if vista_activa %}
+            <h2>Sin pedidos activos</h2>
+            <p>No hay pedidos pendientes ni en camino.</p>
             <p class="text-muted" style="margin-top:.5rem">
                 Verificá que el watcher esté corriendo en la PC de la oficina.
             </p>
             {% else %}
+            <h2>Sin facturas</h2>
             <p>No hay facturas registradas para esta fecha.</p>
             {% endif %}
         </div>

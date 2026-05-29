@@ -229,6 +229,15 @@ body {
     outline: none;
 }
 .date-nav input[type="date"]:hover { background: var(--bg); }
+.date-active-badge {
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .25rem .6rem;
+    border-radius: 8px;
+    background: #ecfdf5;
+    color: #059669;
+    border: 1.5px solid #a7f3d0;
+}
 .date-today-btn {
     font-size: .72rem;
     font-weight: 700;
