@@ -36,57 +36,57 @@ def es_reciente(path: Path) -> bool:
 
 # ---- Parser integrado ----
 
-def _parse_precio(s: str) -> float:
-    """Convierte precios argentinos o US a float.
-    Acepta: 1234.56  /  1.234,56  /  1234,56  /  1.234.567,89
-    """
-    s = s.strip()
-    if "," in s:
-        # Formato argentino: puntos = miles, coma = decimal
-        return float(s.replace(".", "").replace(",", "."))
-    else:
-        # Formato US: punto = decimal
-        return float(s.replace(",", ""))
-
-
 def _extraer_items(text: str) -> list:
-    PRECIO = r"[\d]+(?:[.,]\d{3})*(?:[.,]\d{1,2})?"
+    """Extrae items de la factura.
+    Busca lineas con formato: CANTIDAD  DESCRIPCION [precio_unit precio_total]
+    Los precios son opcionales — lo importante es cantidad y detalle (medida/diseno).
+    Funciona con cubiertas: '4 205/55R16 PIRELLI P7  1.234,56  4.938,24'
+    """
+    PRECIO_PAT = r'[\d]+(?:[.,]\d{3})*[.,]\d{2}'  # numero con decimales obligatorios
 
     items = []
     lines = text.split("\n")
     en_items = False
+
     for line in lines:
         line = line.strip()
+
         if re.match(r'CANTIDAD\s+DETALLE', line, re.IGNORECASE):
             en_items = True
             continue
         if not en_items:
             continue
-        if re.match(r'Neto\s+gravado|TOTAL|C\.A\.E|IVA|SUBTOTAL', line, re.IGNORECASE):
+        if re.match(r'Neto\s+gravado|TOTAL|C\.A\.E|IVA|SUBTOTAL|Bonif', line, re.IGNORECASE):
             break
         if not line:
             continue
 
-        # Intenta extraer: CANTIDAD  DETALLE  PRECIO_UNIT  PRECIO_TOTAL
-        m = re.match(rf'^(\d+)\s+(.+?)\s+({PRECIO})\s+({PRECIO})$', line)
-        if m:
-            try:
-                items.append({
-                    "cantidad":     int(m.group(1)),
-                    "detalle":      m.group(2).strip(),
-                    "precio_unit":  _parse_precio(m.group(3)),
-                    "precio_total": _parse_precio(m.group(4)),
-                })
-            except ValueError:
-                pass
+        # Toda linea de item empieza con 1-4 digitos (cantidad) + espacio + descripcion
+        m = re.match(r'^(\d{1,4})\s+(.+)$', line)
+        if not m:
             continue
 
-        # Fallback: sin columnas de precio (solo CANTIDAD  DETALLE)
-        m2 = re.match(r'^(\d{1,4})\s+([A-Za-z].{2,})$', line)
-        if m2:
+        cantidad = int(m.group(1))
+        if cantidad == 0:
+            continue
+
+        resto = m.group(2).strip()
+
+        # Intenta quitar precios del final (pueden estar o no)
+        precios = re.findall(PRECIO_PAT, resto)
+        if len(precios) >= 2:
+            # Sacar los ultimos 2 precios del detalle
+            p1, p2 = precios[-2], precios[-1]
+            detalle = resto
+            detalle = re.sub(r'\s+' + re.escape(p2) + r'$', '', detalle).strip()
+            detalle = re.sub(r'\s+' + re.escape(p1) + r'$', '', detalle).strip()
+        else:
+            detalle = resto
+
+        if detalle:
             items.append({
-                "cantidad":     int(m2.group(1)),
-                "detalle":      m2.group(2).strip(),
+                "cantidad":     cantidad,
+                "detalle":      detalle,
                 "precio_unit":  0.0,
                 "precio_total": 0.0,
             })
