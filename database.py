@@ -1,46 +1,172 @@
 """
 database.py
-Usa Turso (libsql en la nube) si hay TURSO_URL + TURSO_TOKEN en el entorno.
-Cae a SQLite local si no hay variables (desarrollo local).
+Usa Turso via HTTP API si hay TURSO_URL + TURSO_TOKEN en el entorno.
+No requiere paquetes extra (usa urllib de la stdlib).
+Cae a SQLite local si no hay variables (desarrollo / fallback).
 """
+import json
 import os
+import urllib.request
+import urllib.error
 from datetime import datetime
 
 TURSO_URL   = os.environ.get("TURSO_URL", "")
 TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
 
 
-def get_db():
-    if TURSO_URL and TURSO_TOKEN:
-        import libsql_experimental as libsql
-        return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
-    # Fallback local
+# ---------------------------------------------------------------------------
+# Capa Turso HTTP
+# ---------------------------------------------------------------------------
+
+def _http_endpoint():
+    return TURSO_URL.replace("libsql://", "https://") + "/v2/pipeline"
+
+
+def _to_arg(v):
+    """Convierte un valor Python al formato de argumento Turso."""
+    if v is None:
+        return {"type": "null"}
+    if isinstance(v, bool):
+        return {"type": "integer", "value": str(int(v))}
+    if isinstance(v, int):
+        return {"type": "integer", "value": str(v)}
+    if isinstance(v, float):
+        return {"type": "float", "value": str(v)}
+    return {"type": "text", "value": str(v)}
+
+
+def _from_val(v):
+    """Convierte un valor Turso a Python."""
+    if v["type"] == "null":
+        return None
+    if v["type"] == "integer":
+        return int(v["value"])
+    if v["type"] == "float":
+        return float(v["value"])
+    return v["value"]
+
+
+def _turso_exec(sql: str, params=()):
+    """Ejecuta una sentencia SQL en Turso y devuelve (cols, rows, lastrowid)."""
+    stmt = {"sql": sql}
+    if params:
+        stmt["args"] = [_to_arg(p) for p in params]
+
+    body = json.dumps({
+        "requests": [
+            {"type": "execute", "stmt": stmt},
+            {"type": "close"},
+        ]
+    }).encode()
+
+    req = urllib.request.Request(
+        _http_endpoint(),
+        data=body,
+        headers={
+            "Authorization": f"Bearer {TURSO_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        data = json.loads(resp.read())
+
+    result = data["results"][0]
+    if result["type"] == "error":
+        raise Exception(result["error"]["message"])
+
+    r       = result["response"]["result"]
+    cols    = [c["name"] for c in r.get("cols", [])]
+    rows    = [[_from_val(v) for v in row] for row in r.get("rows", [])]
+    lastrow = int(r["last_insert_rowid"]) if r.get("last_insert_rowid") else None
+    return cols, rows, lastrow
+
+
+def _turso_fetchall(sql, params=()):
+    cols, rows, _ = _turso_exec(sql, params)
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def _turso_fetchone(sql, params=()):
+    cols, rows, _ = _turso_exec(sql, params)
+    return dict(zip(cols, rows[0])) if rows else None
+
+
+def _turso_run(sql, params=()):
+    _, _, lastrow = _turso_exec(sql, params)
+    return lastrow
+
+
+# ---------------------------------------------------------------------------
+# Capa SQLite local (fallback)
+# ---------------------------------------------------------------------------
+
+def _sqlite_conn():
     import sqlite3
     conn = sqlite3.connect("vulcamoia.db")
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def _rows(cur) -> list:
-    """Convierte filas (tuplas o sqlite3.Row) a lista de dicts."""
-    rows = cur.fetchall()
-    if not rows:
-        return []
-    if hasattr(rows[0], "keys"):          # sqlite3.Row
-        return [dict(r) for r in rows]
-    cols = [d[0] for d in cur.description]
-    return [dict(zip(cols, row)) for row in rows]
+def _sqlite_fetchall(sql, params=()):
+    conn = _sqlite_conn()
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
-def _one(cur):
-    """Devuelve una fila como dict o None."""
-    row = cur.fetchone()
-    if row is None:
-        return None
-    if hasattr(row, "keys"):
-        return dict(row)
-    cols = [d[0] for d in cur.description]
-    return dict(zip(cols, row))
+def _sqlite_fetchone(sql, params=()):
+    conn = _sqlite_conn()
+    row = conn.execute(sql, params).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def _sqlite_run(sql, params=()):
+    conn = _sqlite_conn()
+    cur  = conn.execute(sql, params)
+    conn.commit()
+    lastrow = cur.lastrowid
+    conn.close()
+    return lastrow
+
+
+def _sqlite_runmany(stmts_params):
+    conn = _sqlite_conn()
+    for sql, params in stmts_params:
+        conn.execute(sql, params)
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# API unificada
+# ---------------------------------------------------------------------------
+
+def _use_turso():
+    return bool(TURSO_URL and TURSO_TOKEN)
+
+
+def fetchall(sql, params=()):
+    return _turso_fetchall(sql, params) if _use_turso() else _sqlite_fetchall(sql, params)
+
+
+def fetchone(sql, params=()):
+    return _turso_fetchone(sql, params) if _use_turso() else _sqlite_fetchone(sql, params)
+
+
+def run(sql, params=()):
+    """Ejecuta y devuelve lastrowid."""
+    return _turso_run(sql, params) if _use_turso() else _sqlite_run(sql, params)
+
+
+def runmany(stmts_params):
+    """Ejecuta varias sentencias (sin retorno)."""
+    if _use_turso():
+        for sql, params in stmts_params:
+            _turso_run(sql, params)
+    else:
+        _sqlite_runmany(stmts_params)
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +174,6 @@ def _one(cur):
 # ---------------------------------------------------------------------------
 
 def init_db():
-    conn = get_db()
     for sql in [
         """CREATE TABLE IF NOT EXISTS facturas (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,15 +205,12 @@ def init_db():
             procesado TEXT
         )""",
     ]:
-        conn.execute(sql)
-    conn.commit()
-    # Migracion: foto_remito puede no existir en DBs viejas
+        run(sql)
+    # Migracion: foto_remito puede no existir
     try:
-        conn.execute("ALTER TABLE facturas ADD COLUMN foto_remito TEXT")
-        conn.commit()
+        run("ALTER TABLE facturas ADD COLUMN foto_remito TEXT")
     except Exception:
         pass
-    conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -96,41 +218,28 @@ def init_db():
 # ---------------------------------------------------------------------------
 
 def factura_exists(numero: str) -> bool:
-    conn = get_db()
-    cur  = conn.execute(
-        "SELECT 1 FROM facturas WHERE numero_factura = ?", (numero,)
-    )
-    found = cur.fetchone() is not None
-    conn.close()
-    return found
+    row = fetchone("SELECT 1 FROM facturas WHERE numero_factura = ?", (numero,))
+    return row is not None
 
 
 def insert_factura(data: dict, items: list):
-    conn = get_db()
-    cur = conn.execute(
+    factura_id = run(
         """INSERT INTO facturas
            (numero_factura, fecha, cliente, domicilio, cuit, vendedor, archivo)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            data["numero"], data["fecha"], data["cliente"],
-            data["domicilio"], data["cuit"], data["vendedor"], data["archivo"],
-        ),
+        (data["numero"], data["fecha"], data["cliente"],
+         data["domicilio"], data["cuit"], data["vendedor"], data["archivo"]),
     )
-    factura_id = cur.lastrowid
     for item in items:
-        conn.execute(
-            """INSERT INTO items
-               (factura_id, cantidad, detalle, precio_unit, precio_total)
+        run(
+            """INSERT INTO items (factura_id, cantidad, detalle, precio_unit, precio_total)
                VALUES (?, ?, ?, ?, ?)""",
             (factura_id, item["cantidad"], item["detalle"],
              item.get("precio_unit", 0), item.get("precio_total", 0)),
         )
-    conn.commit()
-    conn.close()
 
 
 def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
-    conn  = get_db()
     query = """
         SELECT id, numero_factura, fecha, cliente, domicilio, cuit, vendedor,
                archivo, estado, fecha_en_envio, fecha_en_camino, fecha_entregado,
@@ -139,57 +248,34 @@ def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
         FROM facturas WHERE 1=1
     """
     params = []
-
     if vendedor is not None:
         query += " AND vendedor = ?"
         params.append(vendedor)
-
     if estados:
-        placeholders = ",".join("?" * len(estados))
-        query += f" AND estado IN ({placeholders})"
+        query += f" AND estado IN ({','.join('?' * len(estados))})"
         params.extend(estados)
-
     if fecha:
         query += " AND DATE(created_at) = ?"
         params.append(fecha)
-
     query += " ORDER BY created_at DESC"
-    cur  = conn.execute(query, params)
-    rows = _rows(cur)
-    conn.close()
-    return rows
+    return fetchall(query, params)
 
 
 def get_items(factura_id: int) -> list:
-    conn = get_db()
-    cur  = conn.execute(
-        "SELECT * FROM items WHERE factura_id = ?", (factura_id,)
-    )
-    rows = _rows(cur)
-    conn.close()
-    return rows
+    return fetchall("SELECT * FROM items WHERE factura_id = ?", (factura_id,))
 
 
 def update_estado(factura_id: int, nuevo_estado: str):
-    conn = get_db()
-    now  = datetime.now().strftime("%Y-%m-%d %H:%M")
-    campo_fecha = {
-        "en_envio": "fecha_en_envio",
-        "en_camino": "fecha_en_camino",
-        "entregado": "fecha_entregado",
-    }
-    if nuevo_estado in campo_fecha:
-        conn.execute(
-            f"UPDATE facturas SET estado = ?, {campo_fecha[nuevo_estado]} = ? WHERE id = ?",
-            (nuevo_estado, now, factura_id),
-        )
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    campo = {"en_envio": "fecha_en_envio",
+             "en_camino": "fecha_en_camino",
+             "entregado": "fecha_entregado"}.get(nuevo_estado)
+    if campo:
+        run(f"UPDATE facturas SET estado = ?, {campo} = ? WHERE id = ?",
+            (nuevo_estado, now, factura_id))
     else:
-        conn.execute(
-            "UPDATE facturas SET estado = ? WHERE id = ?",
-            (nuevo_estado, factura_id),
-        )
-    conn.commit()
-    conn.close()
+        run("UPDATE facturas SET estado = ? WHERE id = ?",
+            (nuevo_estado, factura_id))
 
 
 # ---------------------------------------------------------------------------
@@ -197,44 +283,9 @@ def update_estado(factura_id: int, nuevo_estado: str):
 # ---------------------------------------------------------------------------
 
 def save_foto(factura_id: int, data_url: str):
-    conn = get_db()
-    conn.execute(
-        "UPDATE facturas SET foto_remito = ? WHERE id = ?",
-        (data_url, factura_id),
-    )
-    conn.commit()
-    conn.close()
+    run("UPDATE facturas SET foto_remito = ? WHERE id = ?", (data_url, factura_id))
 
 
 def get_foto(factura_id: int):
-    conn = get_db()
-    cur  = conn.execute(
-        "SELECT foto_remito FROM facturas WHERE id = ?", (factura_id,)
-    )
-    row = _one(cur)
-    conn.close()
+    row = fetchone("SELECT foto_remito FROM facturas WHERE id = ?", (factura_id,))
     return row["foto_remito"] if row else None
-
-
-# ---------------------------------------------------------------------------
-# Archivos procesados (no usado activamente, se mantiene para compatibilidad)
-# ---------------------------------------------------------------------------
-
-def archivo_procesado(nombre: str) -> bool:
-    conn = get_db()
-    cur  = conn.execute(
-        "SELECT 1 FROM archivos_procesados WHERE nombre = ?", (nombre,)
-    )
-    found = cur.fetchone() is not None
-    conn.close()
-    return found
-
-
-def mark_archivo_procesado(nombre: str):
-    conn = get_db()
-    conn.execute(
-        "INSERT OR IGNORE INTO archivos_procesados (nombre, procesado) VALUES (?, ?)",
-        (nombre, datetime.now().isoformat()),
-    )
-    conn.commit()
-    conn.close()
