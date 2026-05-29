@@ -27,16 +27,16 @@
     <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-number">{{ stats.total }}</div>
-            <div class="stat-label">Total</div>
-        </div>
-        <div class="stat-card">
             <div class="stat-number text-pendiente">{{ stats.pendiente }}</div>
             <div class="stat-label">Pendientes</div>
         </div>
         <div class="stat-card">
             <div class="stat-number text-envio">{{ stats.en_envio }}</div>
             <div class="stat-label">En envío</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-listo">{{ stats.listo }}</div>
+            <div class="stat-label">Listos</div>
         </div>
         <div class="stat-card">
             <div class="stat-number text-camino">{{ stats.en_camino }}</div>
@@ -64,6 +64,7 @@
             <button class="filter-btn active" data-filter="all">Todos</button>
             <button class="filter-btn" data-filter="pendiente">Pendientes</button>
             <button class="filter-btn" data-filter="en_envio">En envío</button>
+            <button class="filter-btn" data-filter="listo">Listos</button>
             <button class="filter-btn" data-filter="en_camino">En camino</button>
             <button class="filter-btn" data-filter="entregado">Entregados</button>
         </div>
@@ -132,6 +133,11 @@
                             onclick="setEstado({{ f.id }}, 'en_envio', this)"
                             {% if f.estado == 'en_envio' %}disabled{% endif %}>
                         📦 En envío
+                    </button>
+                    <button class="estado-pill ep-listo {% if f.estado == 'listo' %}active{% endif %}"
+                            onclick="setEstado({{ f.id }}, 'listo', this)"
+                            {% if f.estado == 'listo' %}disabled{% endif %}>
+                        ✔ Listo
                     </button>
                     <button class="estado-pill ep-camino {% if f.estado == 'en_camino' %}active{% endif %}"
                             onclick="setEstado({{ f.id }}, 'en_camino', this)"

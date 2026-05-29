@@ -23,7 +23,8 @@ templates.env.filters["urlencode"] = lambda s: quote(str(s))
 
 ESTADO_LABELS = {
     "pendiente": "Pendiente",
-    "en_envio":  "En envío a Bs.As.",
+    "en_envio":  "En envío",
+    "listo":     "Listo para entregar",
     "en_camino": "En camino",
     "entregado": "Entregado",
 }
@@ -96,7 +97,7 @@ async def admin_view(request: Request, fecha: str = None):
         # + los entregados de hoy
         activos = db.get_facturas(
             vendedor=VENDEDOR_ID,
-            estados=["pendiente", "en_envio", "en_camino"],
+            estados=["pendiente", "en_envio", "listo", "en_camino"],
         )
         entregados_hoy = db.get_facturas(
             vendedor=VENDEDOR_ID,
@@ -115,9 +116,9 @@ async def admin_view(request: Request, fecha: str = None):
         f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
 
     stats = {
-        "total":     len(facturas),
         "pendiente": sum(1 for f in facturas if f["estado"] == "pendiente"),
         "en_envio":  sum(1 for f in facturas if f["estado"] == "en_envio"),
+        "listo":     sum(1 for f in facturas if f["estado"] == "listo"),
         "en_camino": sum(1 for f in facturas if f["estado"] == "en_camino"),
         "entregado": sum(1 for f in facturas if f["estado"] == "entregado"),
     }
@@ -143,8 +144,9 @@ async def repartidor_view(request: Request):
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    pendientes = db.get_facturas(vendedor=VENDEDOR_ID, estados=["en_envio", "en_camino"])
-    for f in pendientes:
+    listos    = db.get_facturas(vendedor=VENDEDOR_ID, estados=["listo"])
+    en_camino = db.get_facturas(vendedor=VENDEDOR_ID, estados=["en_camino"])
+    for f in listos + en_camino:
         f["items"] = db.get_items(f["id"])
         f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
 
@@ -155,10 +157,11 @@ async def repartidor_view(request: Request):
     return templates.TemplateResponse(
         "repartidor.html",
         {
-            "request":   request,
-            "facturas":  pendientes,
+            "request":    request,
+            "listos":     listos,
+            "en_camino":  en_camino,
             "entregadas": entregadas,
-            "user":      user,
+            "user":       user,
         },
     )
 
@@ -197,8 +200,8 @@ async def set_estado(factura_id: int, request: Request):
     nuevo = body.get("estado")
 
     permisos = {
-        "admin":      ["pendiente", "en_envio", "en_camino", "entregado"],
-        "repartidor": ["en_camino", "entregado"],
+        "admin":      ["pendiente", "en_envio", "listo", "en_camino", "entregado"],
+        "repartidor": ["en_camino", "entregado"],   # listo->en_camino lo hace el repartidor
     }
     if nuevo not in permisos.get(user["role"], []):
         raise HTTPException(status_code=403, detail="No tenés permiso para ese estado")

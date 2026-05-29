@@ -23,38 +23,19 @@
 
 <main class="container-narrow">
 
-    {% if facturas %}
-
-    <div class="section-title">
-        Para entregar
-        <span class="count-badge">{{ facturas | length }}</span>
+    <!-- ===================== LISTOS PARA ENTREGAR ===================== -->
+    {% if listos %}
+    <div class="section-title section-listo">
+        Listos para cargar
+        <span class="count-badge count-listo">{{ listos | length }}</span>
     </div>
+    <p class="section-hint">Las cubiertas ya llegaron. Cargá el camión y marcá "Salí a entregar".</p>
 
-    {% for f in facturas %}
-    <div class="delivery-card delivery-{{ f.estado }}" id="card-{{ f.id }}">
-
-        <!-- Progress steps -->
-        <div class="progress-steps">
-            <div class="step done">
-                <div class="step-dot"></div>
-                <div class="step-label">Pendiente</div>
-            </div>
-            <div class="step {% if f.estado in ['en_camino', 'entregado'] %}done{% elif f.estado == 'en_envio' %}active{% endif %}">
-                <div class="step-dot"></div>
-                <div class="step-label">En envío</div>
-            </div>
-            <div class="step {% if f.estado == 'entregado' %}done{% elif f.estado == 'en_camino' %}active{% endif %}">
-                <div class="step-dot"></div>
-                <div class="step-label">En camino</div>
-            </div>
-            <div class="step {% if f.estado == 'entregado' %}done{% endif %}">
-                <div class="step-dot"></div>
-                <div class="step-label">Entregado</div>
-            </div>
-        </div>
+    {% for f in listos %}
+    <div class="delivery-card delivery-listo" id="card-{{ f.id }}">
 
         <div class="delivery-top">
-            <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
+            <span class="badge badge-listo">Listo para entregar</span>
             <span class="factura-num">{{ f.numero_factura }}</span>
         </div>
 
@@ -72,36 +53,77 @@
                 <span class="delivery-qty">{{ item.cantidad }}</span>
                 <span class="delivery-detalle">{{ item.detalle }}</span>
             </div>
+            {% else %}
+            <span class="text-muted" style="font-size:.85rem">Sin detalle de artículos</span>
             {% endfor %}
         </div>
 
         <div class="delivery-actions">
-            {% if f.estado == 'en_envio' %}
             <button class="btn-big btn-camino" onclick="setEstado({{ f.id }}, 'en_camino', this)">
                 🚗 &nbsp;Salí a entregar
             </button>
-            {% elif f.estado == 'en_camino' %}
-            <button class="btn-big btn-entregado" onclick="setEstado({{ f.id }}, 'entregado', this)">
-                ✅ &nbsp;Marcar como entregado
-            </button>
-            {% endif %}
         </div>
 
     </div>
     {% endfor %}
+    {% endif %}
 
-    {% else %}
+    <!-- ===================== EN CAMINO ===================== -->
+    {% if en_camino %}
+    <div class="section-title section-camino" style="margin-top:{% if listos %}1.5rem{% else %}0{% endif %}">
+        En camino
+        <span class="count-badge count-camino">{{ en_camino | length }}</span>
+    </div>
+    <p class="section-hint">Marcá como entregado cuando el cliente reciba las cubiertas.</p>
 
+    {% for f in en_camino %}
+    <div class="delivery-card delivery-en_camino" id="card-{{ f.id }}">
+
+        <div class="delivery-top">
+            <span class="badge badge-en_camino">En camino</span>
+            <span class="factura-num">{{ f.numero_factura }}</span>
+        </div>
+
+        <div class="delivery-cliente">{{ f.cliente }}</div>
+
+        <a class="delivery-domicilio"
+           href="https://maps.google.com/maps?q={{ f.domicilio | urlencode }}"
+           target="_blank">
+            📍 {{ f.domicilio }}
+        </a>
+
+        <div class="delivery-items">
+            {% for item in f['items'] %}
+            <div class="delivery-item-row">
+                <span class="delivery-qty">{{ item.cantidad }}</span>
+                <span class="delivery-detalle">{{ item.detalle }}</span>
+            </div>
+            {% else %}
+            <span class="text-muted" style="font-size:.85rem">Sin detalle de artículos</span>
+            {% endfor %}
+        </div>
+
+        <div class="delivery-actions">
+            <button class="btn-big btn-entregado" onclick="setEstado({{ f.id }}, 'entregado', this)">
+                ✅ &nbsp;Marcar como entregado
+            </button>
+        </div>
+
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- ===================== SIN PEDIDOS ===================== -->
+    {% if not listos and not en_camino %}
     <div class="empty-state">
         <span class="empty-icon">🎉</span>
         <h2>¡Todo al día!</h2>
-        <p>No hay entregas pendientes.<br>La oficina todavía no marcó ninguna en envío.</p>
+        <p>No hay entregas pendientes.<br>La oficina avisará cuando las cubiertas estén listas.</p>
         <a href="/repartidor" class="btn btn-secondary" style="margin-top:1.25rem">Actualizar</a>
     </div>
-
     {% endif %}
 
-    <!-- Entregados del día -->
+    <!-- ===================== ENTREGADOS DEL DÍA ===================== -->
     {% if entregadas %}
     <details class="entregadas-section">
         <summary>

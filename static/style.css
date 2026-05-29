@@ -12,6 +12,7 @@
 
     --pendiente: #94a3b8;
     --envio:     #3b82f6;
+    --listo:     #8b5cf6;
     --camino:    #f59e0b;
     --entregado: #10b981;
 
@@ -138,6 +139,7 @@ body {
 }
 .badge-pendiente { background: #f1f5f9; color: #64748b;  border: 1.5px solid #cbd5e1; }
 .badge-en_envio  { background: #eff6ff; color: #2563eb;  border: 1.5px solid #bfdbfe; }
+.badge-listo     { background: #f5f3ff; color: #7c3aed;  border: 1.5px solid #ddd6fe; }
 .badge-en_camino { background: #fffbeb; color: #d97706;  border: 1.5px solid #fde68a; }
 .badge-entregado { background: #ecfdf5; color: #059669;  border: 1.5px solid #a7f3d0; }
 
@@ -181,6 +183,7 @@ body {
 
 .text-pendiente { color: var(--pendiente); }
 .text-envio     { color: var(--envio); }
+.text-listo     { color: var(--listo); }
 .text-camino    { color: var(--camino); }
 .text-entregado { color: var(--entregado); }
 .text-muted     { color: var(--muted); font-size: .875rem; }
@@ -285,6 +288,7 @@ body {
 }
 .factura-card[data-estado="pendiente"] .factura-card-inner { border-left-color: var(--pendiente); }
 .factura-card[data-estado="en_envio"]  .factura-card-inner { border-left-color: var(--envio); }
+.factura-card[data-estado="listo"]     .factura-card-inner { border-left-color: var(--listo); }
 .factura-card[data-estado="en_camino"] .factura-card-inner { border-left-color: var(--camino); }
 .factura-card[data-estado="entregado"] .factura-card-inner { border-left-color: var(--entregado); }
 
@@ -444,11 +448,13 @@ body {
 
 .estado-pill.active.ep-pendiente { background: #f1f5f9; color: #475569;  border-color: #94a3b8; }
 .estado-pill.active.ep-envio      { background: #eff6ff; color: #2563eb;  border-color: #3b82f6; }
+.estado-pill.active.ep-listo      { background: #f5f3ff; color: #7c3aed;  border-color: #8b5cf6; }
 .estado-pill.active.ep-camino     { background: #fffbeb; color: #d97706;  border-color: #f59e0b; }
 .estado-pill.active.ep-entregado  { background: #ecfdf5; color: #059669;  border-color: #10b981; }
 
 .ep-pendiente:hover:not(:disabled) { border-color: #94a3b8; color: #475569; }
 .ep-envio:hover:not(:disabled)      { border-color: #3b82f6; color: #2563eb; }
+.ep-listo:hover:not(:disabled)      { border-color: #8b5cf6; color: #7c3aed; }
 .ep-camino:hover:not(:disabled)     { border-color: #f59e0b; color: #d97706; }
 .ep-entregado:hover:not(:disabled)  { border-color: #10b981; color: #059669; }
 
@@ -653,7 +659,17 @@ body {
     font-size: .7rem;
     font-weight: 700;
 }
-.count-ok { background: var(--entregado); }
+.count-ok     { background: var(--entregado); }
+.count-listo  { background: var(--listo); }
+.count-camino { background: var(--camino); }
+
+.section-listo  { color: var(--listo); }
+.section-camino { color: var(--camino); }
+.section-hint {
+    font-size: .82rem;
+    color: var(--muted);
+    margin: -.5rem 0 .9rem;
+}
 
 .delivery-card {
     background: var(--card);
@@ -663,6 +679,9 @@ body {
     box-shadow: 0 2px 16px rgba(0,0,0,.1);
     animation: fadeUp .35s ease both;
     transition: box-shadow .2s;
+}
+.delivery-card.delivery-listo {
+    box-shadow: 0 0 0 2.5px var(--listo), 0 4px 24px rgba(139,92,246,.18);
 }
 .delivery-card.delivery-en_camino {
     box-shadow: 0 0 0 2.5px var(--camino), 0 4px 24px rgba(245,158,11,.22);

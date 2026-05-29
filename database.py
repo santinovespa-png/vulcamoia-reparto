@@ -213,11 +213,15 @@ def init_db():
         )""",
     ]:
         run(sql)
-    # Migracion: foto_remito puede no existir
-    try:
-        run("ALTER TABLE facturas ADD COLUMN foto_remito TEXT")
-    except Exception:
-        pass
+    # Migraciones: columnas que pueden no existir en bases viejas
+    for col_sql in [
+        "ALTER TABLE facturas ADD COLUMN foto_remito TEXT",
+        "ALTER TABLE facturas ADD COLUMN fecha_listo TEXT",
+    ]:
+        try:
+            run(col_sql)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +253,7 @@ def insert_factura(data: dict, items: list):
 def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
     query = """
         SELECT id, numero_factura, fecha, cliente, domicilio, cuit, vendedor,
-               archivo, estado, fecha_en_envio, fecha_en_camino, fecha_entregado,
+               archivo, estado, fecha_en_envio, fecha_listo, fecha_en_camino, fecha_entregado,
                (foto_remito IS NOT NULL AND foto_remito != '') AS has_foto,
                created_at
         FROM facturas WHERE 1=1
@@ -300,9 +304,12 @@ def delete_facturas_sin_items() -> int:
 
 def update_estado(factura_id: int, nuevo_estado: str):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    campo = {"en_envio": "fecha_en_envio",
-             "en_camino": "fecha_en_camino",
-             "entregado": "fecha_entregado"}.get(nuevo_estado)
+    campo = {
+        "en_envio":  "fecha_en_envio",
+        "listo":     "fecha_listo",
+        "en_camino": "fecha_en_camino",
+        "entregado": "fecha_entregado",
+    }.get(nuevo_estado)
     if campo:
         run(f"UPDATE facturas SET estado = ?, {campo} = ? WHERE id = ?",
             (nuevo_estado, now, factura_id))
