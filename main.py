@@ -279,3 +279,30 @@ async def get_foto_endpoint(factura_id: int, request: Request):
     mime    = header.split(":")[1].split(";")[0]
     content = base64.b64decode(data)
     return Response(content=content, media_type=mime)
+
+
+@app.get("/api/status")
+async def status():
+    """Diagnóstico: verifica conexión y cuenta registros."""
+    import os
+    turso_url   = os.environ.get("TURSO_URL", "")
+    turso_token = os.environ.get("TURSO_TOKEN", "")
+    using_turso = bool(turso_url and turso_token)
+
+    try:
+        total = db.fetchone("SELECT COUNT(*) as n FROM facturas")
+        count = total["n"] if total else 0
+        db_ok = True
+        db_error = None
+    except Exception as e:
+        count = -1
+        db_ok = False
+        db_error = str(e)
+
+    return {
+        "ok":          db_ok,
+        "storage":     "turso" if using_turso else "sqlite_local",
+        "turso_url":   turso_url[:40] + "..." if turso_url else "(no configurado)",
+        "facturas_en_db": count,
+        "error":       db_error,
+    }
