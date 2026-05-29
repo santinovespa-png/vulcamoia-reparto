@@ -75,10 +75,17 @@ def _turso_exec(sql: str, params=()):
     if result["type"] == "error":
         raise Exception(result["error"]["message"])
 
-    r       = result["response"]["result"]
-    cols    = [c["name"] for c in r.get("cols", [])]
-    rows    = [[_from_val(v) for v in row] for row in r.get("rows", [])]
-    lastrow = int(r["last_insert_rowid"]) if r.get("last_insert_rowid") else None
+    r    = result["response"]["result"]
+    cols = [c["name"] for c in r.get("cols", [])]
+    rows = [[_from_val(v) for v in row] for row in r.get("rows", [])]
+
+    # last_insert_rowid puede venir como string "5" o None/"0" si no hubo INSERT
+    raw = r.get("last_insert_rowid")
+    try:
+        lastrow = int(raw) or None   # 0 -> None, cualquier ID real -> int
+    except (TypeError, ValueError):
+        lastrow = None
+
     return cols, rows, lastrow
 
 
