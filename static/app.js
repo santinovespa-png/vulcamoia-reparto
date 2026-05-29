@@ -265,3 +265,47 @@ function navegarFecha(delta) {
     const dd   = String(d.getDate()).padStart(2, '0');
     irAFecha(`${yyyy}-${mm}-${dd}`);
 }
+
+// =========================================================
+//  ELIMINAR FACTURA
+// =========================================================
+async function eliminarFactura(facturaId, numero) {
+    if (!confirm(`¿Eliminar el pedido ${numero}?\nEsta acción no se puede deshacer.`)) return;
+
+    try {
+        const res = await fetch(`/api/factura/${facturaId}`, { method: 'DELETE' });
+        if (res.ok) {
+            const card = document.querySelector(`.factura-card[data-id="${facturaId}"]`);
+            if (card) {
+                card.style.transition = 'opacity .2s, transform .2s';
+                card.style.opacity = '0';
+                card.style.transform = 'scale(.95)';
+                setTimeout(() => { card.remove(); }, 220);
+            }
+        } else {
+            alert('Error al eliminar el pedido.');
+        }
+    } catch {
+        alert('Error de conexión.');
+    }
+}
+
+// =========================================================
+//  LIMPIAR SIN ITEMS — borra pendientes sin items para reimportar
+// =========================================================
+async function limpiarSinItems() {
+    if (!confirm('¿Borrar todos los pedidos pendientes sin ítems?\n\nDespués ejecutá el watcher para reimportarlos con los datos completos.')) return;
+
+    try {
+        const res = await fetch('/api/facturas/limpiar-sin-items', { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            alert(`Se eliminaron ${data.eliminadas} pedido(s) sin ítems.\n\nAhora ejecutá el watcher para reimportarlos.`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.detail || 'No se pudo limpiar.'));
+        }
+    } catch {
+        alert('Error de conexión.');
+    }
+}

@@ -262,14 +262,40 @@ def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
         query += f" AND estado IN ({','.join('?' * len(estados))})"
         params.extend(estados)
     if fecha:
-        query += " AND DATE(created_at) = ?"
-        params.append(fecha)
+        # fecha llega como YYYY-MM-DD, pero la columna 'fecha' guarda DD/MM/YYYY
+        # Convertimos para comparar con la fecha real de la factura (no la de importacion)
+        try:
+            from datetime import datetime as _dt
+            d = _dt.strptime(fecha, "%Y-%m-%d")
+            fecha_ddmmyyyy = d.strftime("%d/%m/%Y")
+            query += " AND fecha = ?"
+            params.append(fecha_ddmmyyyy)
+        except ValueError:
+            pass
     query += " ORDER BY created_at DESC"
     return fetchall(query, params)
 
 
 def get_items(factura_id: int) -> list:
     return fetchall("SELECT * FROM items WHERE factura_id = ?", (factura_id,))
+
+
+def delete_factura(factura_id: int):
+    """Elimina una factura y sus items."""
+    run("DELETE FROM items WHERE factura_id = ?", (factura_id,))
+    run("DELETE FROM facturas WHERE id = ?", (factura_id,))
+
+
+def delete_facturas_sin_items() -> int:
+    """Elimina facturas pendientes que no tienen items. Devuelve cuantas borró."""
+    sin_items = fetchall("""
+        SELECT f.id FROM facturas f
+        LEFT JOIN items i ON i.factura_id = f.id
+        WHERE f.estado = 'pendiente' AND i.id IS NULL
+    """)
+    for row in sin_items:
+        run("DELETE FROM facturas WHERE id = ?", (row["id"],))
+    return len(sin_items)
 
 
 def update_estado(factura_id: int, nuevo_estado: str):

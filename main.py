@@ -264,6 +264,26 @@ async def crear_factura_manual(request: Request):
     return {"ok": True, "numero": numero}
 
 
+@app.delete("/api/factura/{factura_id}")
+async def eliminar_factura(factura_id: int, request: Request):
+    """Elimina una factura y sus items (solo admin)."""
+    user = current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin")
+    db.delete_factura(factura_id)
+    return {"ok": True}
+
+
+@app.post("/api/facturas/limpiar-sin-items")
+async def limpiar_sin_items(request: Request):
+    """Borra pedidos pendientes sin items para que el watcher los reimporte."""
+    user = current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin")
+    n = db.delete_facturas_sin_items()
+    return {"ok": True, "eliminadas": n}
+
+
 @app.get("/api/foto/{factura_id}")
 async def get_foto_endpoint(factura_id: int, request: Request):
     """Devuelve la foto del remito como imagen."""

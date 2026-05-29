@@ -69,6 +69,13 @@
         </div>
     </div>
 
+    <!-- Barra de acciones admin -->
+    <div class="admin-actions-bar">
+        <button class="btn-reimportar" onclick="limpiarSinItems()" title="Borra los pedidos sin ítems para que el watcher los reimporte con datos completos">
+            🔃 Reimportar sin ítems
+        </button>
+    </div>
+
     <!-- Lista de facturas -->
     <div class="facturas-list" id="facturas-list">
         {% for f in facturas %}
@@ -81,7 +88,10 @@
                         <span class="factura-numero">{{ f.numero_factura }}</span>
                         <span class="factura-fecha">{{ f.fecha }}</span>
                     </div>
-                    <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
+                    <div class="factura-header-right">
+                        <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
+                        <button class="btn-delete-factura" onclick="eliminarFactura({{ f.id }}, '{{ f.numero_factura }}')" title="Eliminar pedido">🗑</button>
+                    </div>
                 </div>
 
                 <div class="factura-cliente">
