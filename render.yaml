@@ -15,3 +15,7 @@ services:
         value: vulcamoia2024
       - key: REPARTO_PASSWORD
         value: reparto2024
+      - key: TURSO_URL
+        value: libsql://vulca-reparto-santinovespa-png.aws-eu-west-1.turso.io
+      - key: TURSO_TOKEN
+        value: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODAwNTgzMDMsImlkIjoiMDE5ZTczYjktYmQwMS03MTkwLTlhNmUtMDk2ZjIwMDJmZjc4IiwicmlkIjoiMDEwZmQ2MjItMjdjMy00MDU4LTgxYjktMWNmMzY4N2VlZmJiIn0.NDOIJd2CmhnOh0mKCoh11kUxFKbLrNRSr3-TxQQ-66CFsemSKwTlp_e7rkp57fLKoYTNgFHur1AkAh9rNRD7CQ

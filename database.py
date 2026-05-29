@@ -1,52 +1,88 @@
-import sqlite3
-from datetime import datetime, date
+"""
+database.py
+Usa Turso (libsql en la nube) si hay TURSO_URL + TURSO_TOKEN en el entorno.
+Cae a SQLite local si no hay variables (desarrollo local).
+"""
+import os
+from datetime import datetime
 
-DB_PATH = "vulcamoia.db"
+TURSO_URL   = os.environ.get("TURSO_URL", "")
+TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    if TURSO_URL and TURSO_TOKEN:
+        import libsql_experimental as libsql
+        return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+    # Fallback local
+    import sqlite3
+    conn = sqlite3.connect("vulcamoia.db")
     conn.row_factory = sqlite3.Row
     return conn
 
 
+def _rows(cur) -> list:
+    """Convierte filas (tuplas o sqlite3.Row) a lista de dicts."""
+    rows = cur.fetchall()
+    if not rows:
+        return []
+    if hasattr(rows[0], "keys"):          # sqlite3.Row
+        return [dict(r) for r in rows]
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def _one(cur):
+    """Devuelve una fila como dict o None."""
+    row = cur.fetchone()
+    if row is None:
+        return None
+    if hasattr(row, "keys"):
+        return dict(row)
+    cols = [d[0] for d in cur.description]
+    return dict(zip(cols, row))
+
+
+# ---------------------------------------------------------------------------
+# Init
+# ---------------------------------------------------------------------------
+
 def init_db():
     conn = get_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS facturas (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero_factura    TEXT UNIQUE,
-            fecha             TEXT,
-            cliente           TEXT,
-            domicilio         TEXT,
-            cuit              TEXT,
-            vendedor          INTEGER,
-            archivo           TEXT,
-            estado            TEXT DEFAULT 'pendiente',
-            fecha_en_envio    TEXT,
-            fecha_en_camino   TEXT,
-            fecha_entregado   TEXT,
-            foto_remito       TEXT,
-            created_at        TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS items (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            factura_id    INTEGER,
-            cantidad      INTEGER,
-            detalle       TEXT,
-            precio_unit   REAL,
-            precio_total  REAL,
+    for sql in [
+        """CREATE TABLE IF NOT EXISTS facturas (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_factura  TEXT UNIQUE,
+            fecha           TEXT,
+            cliente         TEXT,
+            domicilio       TEXT,
+            cuit            TEXT,
+            vendedor        INTEGER,
+            archivo         TEXT,
+            estado          TEXT DEFAULT 'pendiente',
+            fecha_en_envio  TEXT,
+            fecha_en_camino TEXT,
+            fecha_entregado TEXT,
+            foto_remito     TEXT,
+            created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+        )""",
+        """CREATE TABLE IF NOT EXISTS items (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id   INTEGER,
+            cantidad     INTEGER,
+            detalle      TEXT,
+            precio_unit  REAL,
+            precio_total REAL,
             FOREIGN KEY (factura_id) REFERENCES facturas(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS archivos_procesados (
-            nombre      TEXT PRIMARY KEY,
-            procesado   TEXT
-        );
-    """)
+        )""",
+        """CREATE TABLE IF NOT EXISTS archivos_procesados (
+            nombre    TEXT PRIMARY KEY,
+            procesado TEXT
+        )""",
+    ]:
+        conn.execute(sql)
     conn.commit()
-    # Migracion: agregar columna foto_remito si no existe
+    # Migracion: foto_remito puede no existir en DBs viejas
     try:
         conn.execute("ALTER TABLE facturas ADD COLUMN foto_remito TEXT")
         conn.commit()
@@ -55,66 +91,50 @@ def init_db():
     conn.close()
 
 
-def archivo_procesado(nombre):
-    conn = get_db()
-    row = conn.execute(
-        "SELECT 1 FROM archivos_procesados WHERE nombre = ?", (nombre,)
-    ).fetchone()
-    conn.close()
-    return row is not None
+# ---------------------------------------------------------------------------
+# Facturas
+# ---------------------------------------------------------------------------
 
-
-def mark_archivo_procesado(nombre):
+def factura_exists(numero: str) -> bool:
     conn = get_db()
-    conn.execute(
-        "INSERT OR IGNORE INTO archivos_procesados (nombre, procesado) VALUES (?, ?)",
-        (nombre, datetime.now().isoformat()),
+    cur  = conn.execute(
+        "SELECT 1 FROM facturas WHERE numero_factura = ?", (numero,)
     )
+    found = cur.fetchone() is not None
+    conn.close()
+    return found
+
+
+def insert_factura(data: dict, items: list):
+    conn = get_db()
+    cur = conn.execute(
+        """INSERT INTO facturas
+           (numero_factura, fecha, cliente, domicilio, cuit, vendedor, archivo)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            data["numero"], data["fecha"], data["cliente"],
+            data["domicilio"], data["cuit"], data["vendedor"], data["archivo"],
+        ),
+    )
+    factura_id = cur.lastrowid
+    for item in items:
+        conn.execute(
+            """INSERT INTO items
+               (factura_id, cantidad, detalle, precio_unit, precio_total)
+               VALUES (?, ?, ?, ?, ?)""",
+            (factura_id, item["cantidad"], item["detalle"],
+             item.get("precio_unit", 0), item.get("precio_total", 0)),
+        )
     conn.commit()
     conn.close()
 
 
-def factura_exists(numero):
-    conn = get_db()
-    row = conn.execute(
-        "SELECT 1 FROM facturas WHERE numero_factura = ?", (numero,)
-    ).fetchone()
-    conn.close()
-    return row is not None
-
-
-def insert_factura(data, items):
-    conn = get_db()
-    try:
-        cur = conn.execute(
-            """INSERT INTO facturas
-               (numero_factura, fecha, cliente, domicilio, cuit, vendedor, archivo)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (
-                data["numero"], data["fecha"], data["cliente"],
-                data["domicilio"], data["cuit"], data["vendedor"], data["archivo"],
-            ),
-        )
-        factura_id = cur.lastrowid
-        for item in items:
-            conn.execute(
-                """INSERT INTO items (factura_id, cantidad, detalle, precio_unit, precio_total)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (factura_id, item["cantidad"], item["detalle"],
-                 item["precio_unit"], item["precio_total"]),
-            )
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_facturas(vendedor=None, estados=None, fecha=None):
-    conn = get_db()
-    # Devuelve has_foto (bool) en lugar del blob completo para no cargar la pagina
+def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
+    conn  = get_db()
     query = """
         SELECT id, numero_factura, fecha, cliente, domicilio, cuit, vendedor,
                archivo, estado, fecha_en_envio, fecha_en_camino, fecha_entregado,
-               (foto_remito IS NOT NULL AND foto_remito != '') as has_foto,
+               (foto_remito IS NOT NULL AND foto_remito != '') AS has_foto,
                created_at
         FROM facturas WHERE 1=1
     """
@@ -130,55 +150,91 @@ def get_facturas(vendedor=None, estados=None, fecha=None):
         params.extend(estados)
 
     if fecha:
-        # fecha debe ser 'YYYY-MM-DD'; created_at esta en UTC pero sirve para filtrar
         query += " AND DATE(created_at) = ?"
         params.append(fecha)
 
     query += " ORDER BY created_at DESC"
-    rows = conn.execute(query, params).fetchall()
+    cur  = conn.execute(query, params)
+    rows = _rows(cur)
     conn.close()
-    return [dict(r) for r in rows]
+    return rows
 
+
+def get_items(factura_id: int) -> list:
+    conn = get_db()
+    cur  = conn.execute(
+        "SELECT * FROM items WHERE factura_id = ?", (factura_id,)
+    )
+    rows = _rows(cur)
+    conn.close()
+    return rows
+
+
+def update_estado(factura_id: int, nuevo_estado: str):
+    conn = get_db()
+    now  = datetime.now().strftime("%Y-%m-%d %H:%M")
+    campo_fecha = {
+        "en_envio": "fecha_en_envio",
+        "en_camino": "fecha_en_camino",
+        "entregado": "fecha_entregado",
+    }
+    if nuevo_estado in campo_fecha:
+        conn.execute(
+            f"UPDATE facturas SET estado = ?, {campo_fecha[nuevo_estado]} = ? WHERE id = ?",
+            (nuevo_estado, now, factura_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE facturas SET estado = ? WHERE id = ?",
+            (nuevo_estado, factura_id),
+        )
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Fotos
+# ---------------------------------------------------------------------------
 
 def save_foto(factura_id: int, data_url: str):
     conn = get_db()
-    conn.execute("UPDATE facturas SET foto_remito = ? WHERE id = ?", (data_url, factura_id))
+    conn.execute(
+        "UPDATE facturas SET foto_remito = ? WHERE id = ?",
+        (data_url, factura_id),
+    )
     conn.commit()
     conn.close()
 
 
 def get_foto(factura_id: int):
     conn = get_db()
-    row = conn.execute("SELECT foto_remito FROM facturas WHERE id = ?", (factura_id,)).fetchone()
+    cur  = conn.execute(
+        "SELECT foto_remito FROM facturas WHERE id = ?", (factura_id,)
+    )
+    row = _one(cur)
     conn.close()
     return row["foto_remito"] if row else None
 
 
-def get_items(factura_id):
+# ---------------------------------------------------------------------------
+# Archivos procesados (no usado activamente, se mantiene para compatibilidad)
+# ---------------------------------------------------------------------------
+
+def archivo_procesado(nombre: str) -> bool:
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM items WHERE factura_id = ?", (factura_id,)
-    ).fetchall()
+    cur  = conn.execute(
+        "SELECT 1 FROM archivos_procesados WHERE nombre = ?", (nombre,)
+    )
+    found = cur.fetchone() is not None
     conn.close()
-    return [dict(r) for r in rows]
+    return found
 
 
-def update_estado(factura_id, nuevo_estado):
+def mark_archivo_procesado(nombre: str):
     conn = get_db()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    campo_fecha = {
-        "en_envio": "fecha_en_envio",
-        "en_camino": "fecha_en_camino",
-        "entregado": "fecha_entregado",
-    }
-    extra_sql = ""
-    params = [nuevo_estado]
-    if nuevo_estado in campo_fecha:
-        extra_sql = f", {campo_fecha[nuevo_estado]} = ?"
-        params.append(now)
-    params.append(factura_id)
     conn.execute(
-        f"UPDATE facturas SET estado = ?{extra_sql} WHERE id = ?", params
+        "INSERT OR IGNORE INTO archivos_procesados (nombre, procesado) VALUES (?, ?)",
+        (nombre, datetime.now().isoformat()),
     )
     conn.commit()
     conn.close()
