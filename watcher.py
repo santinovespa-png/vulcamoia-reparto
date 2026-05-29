@@ -24,7 +24,7 @@ API_KEY         = "vulcamoia-api-key-2024"
 FACTURAS_FOLDER = r"\\central\omicrom\Sistema Toyo\FACTURAS"
 VENDEDOR_ID     = 197
 INTERVALO_SEG   = 30    # segundos entre escaneos
-DIAS_ATRAS      = 7     # cuantos dias hacia atras procesar (para restaurar tras reinicios)
+DIAS_ATRAS      = 1     # procesa ayer y hoy (pedidos del dia anterior + los nuevos)
 # ============================================================
 
 
