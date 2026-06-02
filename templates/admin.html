@@ -3,200 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Oficina - Reparto BA</title>
+    <title>Panel Admin — Reparto BA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="admin-body">
 
-<header class="header">
-    <div class="header-content">
-        <div class="header-left">
-            <span class="header-icon">🚛</span>
-            <span class="header-title">Reparto Buenos Aires</span>
-            <span class="header-sub">Vendedor {{ vendedor_id }}</span>
-        </div>
-        <div class="header-right">
-            <span class="header-user">{{ user.display }}</span>
-            <a href="/logout" class="btn btn-outline btn-sm">Salir</a>
-        </div>
-    </div>
-</header>
-
-<main class="container">
-
-    <!-- Stats -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-number text-pendiente">{{ stats.pendiente }}</div>
-            <div class="stat-label">Pendientes</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number text-envio">{{ stats.en_envio }}</div>
-            <div class="stat-label">En envío</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number text-listo">{{ stats.listo }}</div>
-            <div class="stat-label">Listos</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number text-camino">{{ stats.en_camino }}</div>
-            <div class="stat-label">En camino</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number text-entregado">{{ stats.entregado }}</div>
-            <div class="stat-label">Entregados</div>
-        </div>
-    </div>
-
-    <!-- Toolbar: fecha + filtros -->
-    <div class="toolbar">
-        <div class="date-nav">
-            <button class="date-nav-btn" onclick="navegarFecha(-1)" title="Día anterior">‹</button>
-            <input type="date" id="fecha-input" value="{{ fecha }}" onchange="irAFecha(this.value)">
-            <button class="date-nav-btn" onclick="navegarFecha(1)" title="Día siguiente">›</button>
-            {% if vista_activa %}
-            <span class="date-active-badge">Vista activa</span>
-            {% else %}
-            <a href="/admin" class="date-today-btn">Vista activa</a>
-            {% endif %}
-        </div>
-        <div class="filter-bar">
-            <button class="filter-btn active" data-filter="all">Todos</button>
-            <button class="filter-btn" data-filter="pendiente">Pendientes</button>
-            <button class="filter-btn" data-filter="en_envio">En envío</button>
-            <button class="filter-btn" data-filter="listo">Listos</button>
-            <button class="filter-btn" data-filter="en_camino">En camino</button>
-            <button class="filter-btn" data-filter="entregado">Entregados</button>
-        </div>
-    </div>
-
-    <!-- Barra de acciones admin -->
-    <div class="admin-actions-bar">
-        <button class="btn-reimportar" onclick="limpiarSinItems()" title="Borra los pedidos sin ítems para que el watcher los reimporte con datos completos">
-            🔃 Reimportar sin ítems
-        </button>
-    </div>
-
-    <!-- Lista de facturas -->
-    <div class="facturas-list" id="facturas-list">
-        {% for f in facturas %}
-        <div class="factura-card" data-estado="{{ f.estado }}" data-id="{{ f.id }}"
-             style="animation-delay:{{ loop.index0 * 0.06 }}s">
-            <div class="factura-card-inner">
-
-                <div class="factura-header">
-                    <div class="factura-meta">
-                        <span class="factura-numero">{{ f.numero_factura }}</span>
-                        <span class="factura-fecha">{{ f.fecha }}</span>
-                    </div>
-                    <div class="factura-header-right">
-                        <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
-                        <button class="btn-delete-factura" onclick="eliminarFactura({{ f.id }}, '{{ f.numero_factura }}')" title="Eliminar pedido">🗑</button>
-                    </div>
-                </div>
-
-                <div class="factura-cliente">
-                    <div class="cliente-nombre">{{ f.cliente }}</div>
-                    <div class="cliente-domicilio">
-                        📍 <a href="https://maps.google.com/maps?q={{ f.domicilio | urlencode }}" target="_blank">
-                            {{ f.domicilio }}
-                        </a>
-                    </div>
-                </div>
-
-                <div class="factura-items">
-                    {% for item in f['items'] %}
-                    <div class="item-row">
-                        <span class="item-qty">{{ item.cantidad }}×</span>
-                        <span class="item-detalle">{{ item.detalle }}</span>
-                    </div>
-                    {% else %}
-                    <span class="text-muted">Sin items</span>
-                    {% endfor %}
-                </div>
-
-                <!-- Estado actual -->
-                {% if f.estado == 'entregado' and f.fecha_entregado %}
-                <div class="status-info status-ok" style="margin-bottom:.6rem">
-                    ✅ Entregado — {{ f.fecha_entregado }}
-                </div>
-                {% endif %}
-
-                <!-- Pills: admin puede cambiar a cualquier estado -->
-                <div class="estado-pills">
-                    <button class="estado-pill ep-pendiente {% if f.estado == 'pendiente' %}active{% endif %}"
-                            onclick="setEstado({{ f.id }}, 'pendiente', this)"
-                            {% if f.estado == 'pendiente' %}disabled{% endif %}>
-                        Pendiente
-                    </button>
-                    <button class="estado-pill ep-envio {% if f.estado == 'en_envio' %}active{% endif %}"
-                            onclick="setEstado({{ f.id }}, 'en_envio', this)"
-                            {% if f.estado == 'en_envio' %}disabled{% endif %}>
-                        📦 En envío
-                    </button>
-                    <button class="estado-pill ep-listo {% if f.estado == 'listo' %}active{% endif %}"
-                            onclick="setEstado({{ f.id }}, 'listo', this)"
-                            {% if f.estado == 'listo' %}disabled{% endif %}>
-                        ✔ Listo
-                    </button>
-                    <button class="estado-pill ep-camino {% if f.estado == 'en_camino' %}active{% endif %}"
-                            onclick="setEstado({{ f.id }}, 'en_camino', this)"
-                            {% if f.estado == 'en_camino' %}disabled{% endif %}>
-                        🚗 En camino
-                    </button>
-                    <button class="estado-pill ep-entregado {% if f.estado == 'entregado' %}active{% endif %}"
-                            onclick="setEstado({{ f.id }}, 'entregado', this)"
-                            {% if f.estado == 'entregado' %}disabled{% endif %}>
-                        ✅ Entregado
-                    </button>
-                </div>
-
-                {% if f.estado == 'entregado' %}
-                <div class="foto-section" id="foto-sec-{{ f.id }}">
-                    {% if f.has_foto %}
-                    <div class="foto-thumb-wrapper">
-                        <img class="foto-thumb" src="/api/foto/{{ f.id }}"
-                             alt="Remito firmado" onclick="verFoto(this.src)">
-                        <span class="foto-ok">✓ Remito fotografiado</span>
-                    </div>
-                    {% else %}
-                    <label class="foto-upload-label">
-                        📷 Subir foto del remito
-                        <input type="file" accept="image/*" onchange="subirFoto({{ f.id }}, this)">
-                    </label>
-                    {% endif %}
-                </div>
-                {% endif %}
-
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <span class="sidebar-brand-icon">🚛</span>
+            <div>
+                <span class="sidebar-brand-name">VULCAMOIA</span>
+                <span class="sidebar-brand-sub">Reparto Buenos Aires</span>
             </div>
         </div>
-        {% endfor %}
+        <button class="sidebar-close" id="sidebar-close" onclick="toggleSidebar()">✕</button>
+    </div>
 
-        {% if not facturas %}
-        <div class="empty-state">
-            <span class="empty-icon">📂</span>
-            {% if vista_activa %}
-            <h2>Sin pedidos activos</h2>
-            <p>No hay pedidos pendientes ni en camino.</p>
-            <p class="text-muted" style="margin-top:.5rem">
-                Verificá que el watcher esté corriendo en la PC de la oficina.
-            </p>
-            {% else %}
-            <h2>Sin facturas</h2>
-            <p>No hay facturas registradas para esta fecha.</p>
+    <p class="sidebar-section-label">Navegación</p>
+    <nav class="sidebar-nav">
+        <a href="/admin" class="sidebar-link is-active">
+            <span class="sidebar-link-icon">⚡</span>
+            <span>Dashboard</span>
+        </a>
+    </nav>
+
+    <p class="sidebar-section-label" style="margin-top:.5rem">Filtros rápidos</p>
+    <div style="padding:0 .6rem; display:flex; flex-direction:column; gap:.25rem;">
+        <button class="filter-btn active" data-filter="all" style="border-radius:10px; text-align:left">⚡ Todos</button>
+        <button class="filter-btn" data-filter="pendiente" style="border-radius:10px; text-align:left">· Pendientes</button>
+        <button class="filter-btn" data-filter="en_envio" style="border-radius:10px; text-align:left">· En envío</button>
+        <button class="filter-btn" data-filter="listo" style="border-radius:10px; text-align:left">· Listos</button>
+        <button class="filter-btn" data-filter="en_camino" style="border-radius:10px; text-align:left">· En camino</button>
+        <button class="filter-btn" data-filter="entregado" style="border-radius:10px; text-align:left">· Entregados</button>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="sidebar-footer">
+        <div class="sidebar-user-chip">
+            <div class="sidebar-user-dot"></div>
+            <span>{{ user.display }} · Vendedor {{ vendedor_id }}</span>
+        </div>
+        <a href="/logout" class="sidebar-logout-btn">Cerrar sesión →</a>
+    </div>
+</aside>
+
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+<!-- ===== MAIN WRAPPER ===== -->
+<div class="layout-main">
+
+    <header class="header" id="header">
+        <div class="header-content">
+            <div class="header-left">
+                <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menú">
+                    <span></span><span></span><span></span>
+                </button>
+                <span class="header-title">Panel de Administración</span>
+                <span class="header-sub">Vendedor {{ vendedor_id }}</span>
+            </div>
+            <div class="header-right">
+                <span class="header-user">{{ user.display }}</span>
+                <a href="/logout" class="btn btn-outline btn-sm">Salir</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number text-pendiente" data-count="{{ stats.pendiente }}">{{ stats.pendiente }}</div>
+                <div class="stat-label">Pendientes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-envio" data-count="{{ stats.en_envio }}">{{ stats.en_envio }}</div>
+                <div class="stat-label">En envío</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-listo" data-count="{{ stats.listo }}">{{ stats.listo }}</div>
+                <div class="stat-label">Listos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-camino" data-count="{{ stats.en_camino }}">{{ stats.en_camino }}</div>
+                <div class="stat-label">En camino</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-entregado" data-count="{{ stats.entregado }}">{{ stats.entregado }}</div>
+                <div class="stat-label">Entregados</div>
+            </div>
+        </div>
+
+        <!-- Toolbar: fecha + filtros (mobile) -->
+        <div class="toolbar">
+            <div class="date-nav">
+                <button class="date-nav-btn" onclick="navegarFecha(-1)" title="Día anterior">‹</button>
+                <input type="date" id="fecha-input" value="{{ fecha }}" onchange="irAFecha(this.value)">
+                <button class="date-nav-btn" onclick="navegarFecha(1)" title="Día siguiente">›</button>
+                {% if vista_activa %}
+                <span class="date-active-badge">● Vista activa</span>
+                {% else %}
+                <a href="/admin" class="date-today-btn">Vista activa</a>
+                {% endif %}
+            </div>
+            <div class="filter-bar">
+                <button class="filter-btn active" data-filter="all">Todos</button>
+                <button class="filter-btn" data-filter="pendiente">Pendientes</button>
+                <button class="filter-btn" data-filter="en_envio">En envío</button>
+                <button class="filter-btn" data-filter="listo">Listos</button>
+                <button class="filter-btn" data-filter="en_camino">En camino</button>
+                <button class="filter-btn" data-filter="entregado">Entregados</button>
+            </div>
+        </div>
+
+        <!-- Admin actions bar -->
+        <div class="admin-actions-bar">
+            <button class="btn-reimportar" onclick="limpiarSinItems()"
+                    title="Borra los pedidos sin ítems para que el watcher los reimporte con datos completos">
+                🔃 Reimportar sin ítems
+            </button>
+        </div>
+
+        <!-- Lista de facturas -->
+        <div class="facturas-list" id="facturas-list">
+            {% for f in facturas %}
+            <div class="factura-card observe-anim" data-estado="{{ f.estado }}" data-id="{{ f.id }}"
+                 style="animation-delay:{{ loop.index0 * 0.05 }}s">
+                <div class="factura-card-inner">
+
+                    <div class="factura-header">
+                        <div class="factura-meta">
+                            <span class="factura-numero">{{ f.numero_factura }}</span>
+                            <span class="factura-fecha">{{ f.fecha }}</span>
+                        </div>
+                        <div class="factura-header-right">
+                            <span class="badge badge-{{ f.estado }}">{{ f.estado_label }}</span>
+                            <button class="btn-delete-factura"
+                                    onclick="eliminarFactura({{ f.id }}, '{{ f.numero_factura }}')"
+                                    title="Eliminar pedido">🗑</button>
+                        </div>
+                    </div>
+
+                    <div class="factura-cliente">
+                        <div class="cliente-nombre">{{ f.cliente }}</div>
+                        <div class="cliente-domicilio">
+                            📍 <a href="https://maps.google.com/maps?q={{ f.domicilio | urlencode }}" target="_blank">
+                                {{ f.domicilio }}
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="factura-items">
+                        {% for item in f['items'] %}
+                        <div class="item-row">
+                            <span class="item-qty">{{ item.cantidad }}×</span>
+                            <span class="item-detalle">{{ item.detalle }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">Sin items</span>
+                        {% endfor %}
+                    </div>
+
+                    {% if f.estado == 'entregado' and f.fecha_entregado %}
+                    <div class="status-info status-ok" style="margin-bottom:.6rem">
+                        ✅ Entregado — {{ f.fecha_entregado }}
+                    </div>
+                    {% endif %}
+
+                    <!-- Pills: admin puede cambiar a cualquier estado -->
+                    <div class="estado-pills">
+                        <button class="estado-pill ep-pendiente {% if f.estado == 'pendiente' %}active{% endif %}"
+                                onclick="setEstado({{ f.id }}, 'pendiente', this)"
+                                {% if f.estado == 'pendiente' %}disabled{% endif %}>
+                            Pendiente
+                        </button>
+                        <button class="estado-pill ep-envio {% if f.estado == 'en_envio' %}active{% endif %}"
+                                onclick="setEstado({{ f.id }}, 'en_envio', this)"
+                                {% if f.estado == 'en_envio' %}disabled{% endif %}>
+                            📦 En envío
+                        </button>
+                        <button class="estado-pill ep-listo {% if f.estado == 'listo' %}active{% endif %}"
+                                onclick="setEstado({{ f.id }}, 'listo', this)"
+                                {% if f.estado == 'listo' %}disabled{% endif %}>
+                            ✔ Listo
+                        </button>
+                        <button class="estado-pill ep-camino {% if f.estado == 'en_camino' %}active{% endif %}"
+                                onclick="setEstado({{ f.id }}, 'en_camino', this)"
+                                {% if f.estado == 'en_camino' %}disabled{% endif %}>
+                            🚗 En camino
+                        </button>
+                        <button class="estado-pill ep-entregado {% if f.estado == 'entregado' %}active{% endif %}"
+                                onclick="setEstado({{ f.id }}, 'entregado', this)"
+                                {% if f.estado == 'entregado' %}disabled{% endif %}>
+                            ✅ Entregado
+                        </button>
+                    </div>
+
+                    {% if f.estado == 'entregado' %}
+                    <div class="foto-section" id="foto-sec-{{ f.id }}">
+                        {% if f.has_foto %}
+                        <div class="foto-thumb-wrapper">
+                            <img class="foto-thumb" src="/api/foto/{{ f.id }}"
+                                 alt="Remito firmado" onclick="verFoto(this.src)">
+                            <span class="foto-ok">✓ Remito fotografiado</span>
+                        </div>
+                        {% else %}
+                        <label class="foto-upload-label">
+                            📷 Subir foto del remito
+                            <input type="file" accept="image/*" onchange="subirFoto({{ f.id }}, this)">
+                        </label>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not facturas %}
+            <div class="empty-state">
+                <span class="empty-icon">📂</span>
+                {% if vista_activa %}
+                <h2>Sin pedidos activos</h2>
+                <p>No hay pedidos pendientes ni en camino.</p>
+                <p class="text-muted" style="margin-top:.5rem">
+                    Verificá que el watcher esté corriendo en la PC de la oficina.
+                </p>
+                {% else %}
+                <h2>Sin facturas</h2>
+                <p>No hay facturas registradas para esta fecha.</p>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
-        {% endif %}
-    </div>
 
-    <div class="refresh-note">
-        <a href="/admin?fecha={{ fecha }}" class="btn btn-secondary btn-sm">🔄 Actualizar</a>
-    </div>
+        <div class="refresh-note">
+            <a href="/admin?fecha={{ fecha }}" class="btn btn-secondary btn-sm">🔄 Actualizar</a>
+        </div>
 
-</main>
+    </main>
+</div><!-- /layout-main -->
 
 <!-- FAB: agregar pedido manual -->
-<button class="fab-btn" onclick="abrirFormPedido()" title="Agregar pedido manual">＋</button>
+<button class="fab-btn ripple-host" onclick="abrirFormPedido()" title="Agregar pedido manual">＋</button>
 
 <!-- Modal foto -->
 <div id="foto-modal" class="modal-overlay" style="display:none" onclick="cerrarModal()">
@@ -216,7 +271,6 @@
         </div>
 
         <div class="form-modal-body">
-
             <div class="form-row-2">
                 <div class="form-group">
                     <label>Número de factura

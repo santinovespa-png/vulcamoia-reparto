@@ -14,7 +14,6 @@ async function setEstado(facturaId, estado, btn) {
         });
 
         if (res.ok) {
-            // Animacion de salida antes de recargar
             const card = btn.closest('.factura-card, .delivery-card');
             if (card) {
                 card.style.transition = 'opacity .25s, transform .25s';
@@ -41,16 +40,18 @@ async function setEstado(facturaId, estado, btn) {
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
+        // Activate all buttons with the same data-filter (sidebar + toolbar)
         const filter = btn.dataset.filter;
+        document.querySelectorAll(`.filter-btn[data-filter="${filter}"]`)
+            .forEach(b => b.classList.add('active'));
+
         document.querySelectorAll('.factura-card').forEach((card, i) => {
             const visible = filter === 'all' || card.dataset.estado === filter;
             card.style.display = visible ? '' : 'none';
             if (visible) {
                 card.style.animationDelay = (i * 0.04) + 's';
                 card.style.animation = 'none';
-                card.offsetHeight; // reflow
+                card.offsetHeight;
                 card.style.animation = '';
             }
         });
@@ -67,7 +68,6 @@ async function subirFoto(facturaId, input) {
     const sec = document.getElementById('foto-sec-' + facturaId);
     if (!sec) return;
 
-    // Mostrar estado de carga
     sec.innerHTML = '<span class="foto-uploading">Subiendo foto...</span>';
 
     const formData = new FormData();
@@ -80,7 +80,6 @@ async function subirFoto(facturaId, input) {
         });
 
         if (res.ok) {
-            // Mostrar thumbnail
             const url = `/api/foto/${facturaId}?t=${Date.now()}`;
             sec.innerHTML = `
                 <div class="foto-thumb-wrapper">
@@ -91,7 +90,6 @@ async function subirFoto(facturaId, input) {
         } else {
             const err = await res.json().catch(() => ({}));
             alert('Error al subir: ' + (err.detail || 'intente de nuevo'));
-            // Restaurar boton
             sec.innerHTML = `
                 <label class="foto-upload-label">
                     📷 Subir foto del remito
@@ -128,29 +126,26 @@ function cerrarModal() {
     document.body.style.overflow = '';
 }
 
-// Cerrar modal con ESC
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') cerrarModal();
+    if (e.key === 'Escape') {
+        cerrarModal();
+        const formModal = document.getElementById('form-modal');
+        if (formModal && formModal.style.display !== 'none') cerrarFormPedido();
+    }
 });
 
 // =========================================================
 //  FORM PEDIDO MANUAL
 // =========================================================
 function abrirFormPedido() {
-    // Setear fecha de hoy por defecto
-    const hoy = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+    const hoy = new Date().toLocaleDateString('en-CA');
     document.getElementById('form-fecha').value = hoy;
-
-    // Limpiar campos
     document.getElementById('form-numero').value    = '';
     document.getElementById('form-cliente').value   = '';
     document.getElementById('form-domicilio').value = '';
     document.getElementById('form-items').innerHTML = '';
     ocultarErrorForm();
-
-    // Agregar una fila de item vacia para arrancar
     agregarItem();
-
     document.getElementById('form-modal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
     setTimeout(() => document.getElementById('form-cliente').focus(), 100);
@@ -195,19 +190,17 @@ async function guardarPedido() {
     const cliente   = document.getElementById('form-cliente').value.trim();
     const domicilio = document.getElementById('form-domicilio').value.trim();
     const numero    = document.getElementById('form-numero').value.trim();
-    const fechaISO  = document.getElementById('form-fecha').value; // YYYY-MM-DD
+    const fechaISO  = document.getElementById('form-fecha').value;
 
     if (!cliente)   { mostrarErrorForm('El nombre del cliente es obligatorio.'); return; }
     if (!domicilio) { mostrarErrorForm('El domicilio es obligatorio.'); return; }
 
-    // Convertir fecha YYYY-MM-DD → DD/MM/YYYY para la DB
     let fecha = '';
     if (fechaISO) {
         const [y, m, d] = fechaISO.split('-');
         fecha = `${d}/${m}/${y}`;
     }
 
-    // Recolectar items
     const items = [];
     document.querySelectorAll('#form-items .form-item-row').forEach(row => {
         const cant = parseInt(row.querySelector('.item-cant').value) || 0;
@@ -218,7 +211,7 @@ async function guardarPedido() {
     });
 
     const btn = document.getElementById('btn-guardar');
-    btn.disabled   = true;
+    btn.disabled    = true;
     btn.textContent = 'Guardando...';
 
     try {
@@ -258,7 +251,7 @@ function irAFecha(fecha) {
 function navegarFecha(delta) {
     const input = document.getElementById('fecha-input');
     if (!input) return;
-    const d = new Date(input.value + 'T12:00:00'); // noon para evitar timezone issues
+    const d = new Date(input.value + 'T12:00:00');
     d.setDate(d.getDate() + delta);
     const yyyy = d.getFullYear();
     const mm   = String(d.getMonth() + 1).padStart(2, '0');
@@ -291,7 +284,7 @@ async function eliminarFactura(facturaId, numero) {
 }
 
 // =========================================================
-//  LIMPIAR SIN ITEMS — borra pendientes sin items para reimportar
+//  LIMPIAR SIN ITEMS
 // =========================================================
 async function limpiarSinItems() {
     if (!confirm('¿Borrar todos los pedidos pendientes sin ítems?\n\nDespués ejecutá el watcher para reimportarlos con los datos completos.')) return;
@@ -309,3 +302,107 @@ async function limpiarSinItems() {
         alert('Error de conexión.');
     }
 }
+
+// =========================================================
+//  SIDEBAR TOGGLE (mobile)
+// =========================================================
+function toggleSidebar() {
+    const sidebar  = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.contains('is-open');
+    sidebar.classList.toggle('is-open', !isOpen);
+    backdrop && backdrop.classList.toggle('is-visible', !isOpen);
+    document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+
+// =========================================================
+//  SCROLL — glassmorphism shadow on header
+// =========================================================
+(function initScrollHeader() {
+    const header = document.getElementById('header');
+    if (!header) return;
+    const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 10);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+})();
+
+// =========================================================
+//  COUNT-UP — anima los números de estadísticas
+// =========================================================
+(function initCountUp() {
+    const els = document.querySelectorAll('.stat-number[data-count]');
+    if (!els.length) return;
+
+    els.forEach(el => {
+        const target = parseInt(el.dataset.count, 10) || 0;
+        if (target === 0) return;
+        el.textContent = '0';
+        let start = null;
+        const duration = 700;
+        function step(ts) {
+            if (!start) start = ts;
+            const progress = Math.min((ts - start) / duration, 1);
+            // ease-out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+            el.textContent = Math.round(eased * target);
+            if (progress < 1) requestAnimationFrame(step);
+            else el.textContent = target;
+        }
+        requestAnimationFrame(step);
+    });
+})();
+
+// =========================================================
+//  INTERSECTION OBSERVER — fade-up cards on scroll
+// =========================================================
+(function initObserver() {
+    const items = document.querySelectorAll('.observe-anim');
+    if (!items.length) return;
+
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('in-view');
+                io.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.08 });
+
+    items.forEach((el, i) => {
+        // stagger delay via inline style (add to existing animation-delay)
+        const existing = parseFloat(el.style.animationDelay) || 0;
+        el.style.transitionDelay = existing + 's';
+        io.observe(el);
+    });
+})();
+
+// =========================================================
+//  RIPPLE — efecto ripple en botones con .ripple-host
+// =========================================================
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.ripple-host');
+    if (!btn) return;
+
+    const circle = document.createElement('span');
+    circle.className = 'ripple-circle';
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    circle.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${e.clientX - rect.left - size / 2}px;
+        top:${e.clientY - rect.top  - size / 2}px;
+    `;
+    btn.appendChild(circle);
+    circle.addEventListener('animationend', () => circle.remove());
+});
+
+// =========================================================
+//  RIPPLE — agregar .ripple-host a todos los botones .btn
+//  y pills (excepto disabled) en tiempo de ejecución
+// =========================================================
+(function addRippleToButtons() {
+    document.querySelectorAll('.btn, .estado-pill, .filter-btn, .btn-big').forEach(btn => {
+        if (!btn.disabled) btn.classList.add('ripple-host');
+    });
+})();
