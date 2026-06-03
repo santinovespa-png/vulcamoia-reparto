@@ -100,9 +100,10 @@ def parsear_pdf(pdf_path: Path):
         m = re.search(patron, text)
         return m.group(1).strip() if m else ""
 
-    numero    = buscar(r'FACTURA\s+N[oº°]\s+([A-Z0-9\-]+)')
+    # Nº y ñ a veces se convierten en � (caracter de reemplazo) segun el PDF
+    numero    = buscar(r'FACTURA\s+N[oº°�]\s+([A-Z0-9\-]+)')
     fecha     = buscar(r'FECHA:\s+(\d{2}/\d{2}/\d{4})')
-    cliente   = buscar(r'Se[ñn]or/es:\s+(.+)')
+    cliente   = buscar(r'Se[\xf1n�]or/es:\s+(.+)')
     domicilio = buscar(r'Domicilio:\s+(.+)')
     cuit      = buscar(r'CUIT/DNI:\s+(\d+)')
 
