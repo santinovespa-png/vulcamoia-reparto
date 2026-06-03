@@ -1,5 +1,5 @@
 import base64
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from config import API_KEY, SECRET_KEY, USERS, VENDEDOR_ID
+from config import API_KEY, SECRET_KEY, USERS, VENDEDOR_ID, VENDEDOR_IDS
 import database as db
 
 BASE_DIR = Path(__file__).parent
@@ -38,6 +38,22 @@ db.init_db()
 
 def current_user(request: Request):
     return request.session.get("user")
+
+
+def _enrich_facturas(facturas: list) -> list:
+    """Agrega items, estado_label y fecha_llegada_display a cada factura."""
+    for f in facturas:
+        f["items"] = db.get_items(f["id"])
+        f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
+        fl = f.get("fecha_llegada") or ""
+        if fl:
+            try:
+                f["fecha_llegada_display"] = datetime.strptime(fl, "%Y-%m-%d").strftime("%d/%m/%Y")
+            except ValueError:
+                f["fecha_llegada_display"] = fl
+        else:
+            f["fecha_llegada_display"] = ""
+    return facturas
 
 
 # ---------------------------------------------------------------------------
@@ -90,17 +106,18 @@ async def admin_view(request: Request, fecha: str = None):
     if not user or user["role"] != "admin":
         return RedirectResponse("/login", status_code=303)
 
+    # Promoción automática de facturas cuya fecha_llegada ya pasó
+    db.auto_promover_llegados()
+
     hoy = date.today().isoformat()
 
     if fecha is None:
-        # Vista por defecto: todos los pedidos activos (cualquier fecha)
-        # + los entregados de hoy
         activos = db.get_facturas(
-            vendedor=VENDEDOR_ID,
+            vendedor=VENDEDOR_IDS,
             estados=["pendiente", "en_envio", "listo", "en_camino"],
         )
         entregados_hoy = db.get_facturas(
-            vendedor=VENDEDOR_ID,
+            vendedor=VENDEDOR_IDS,
             estados=["entregado"],
             fecha=hoy,
         )
@@ -108,12 +125,10 @@ async def admin_view(request: Request, fecha: str = None):
         facturas.sort(key=lambda f: f["created_at"], reverse=True)
         vista_activa = True
     else:
-        facturas = db.get_facturas(vendedor=VENDEDOR_ID, fecha=fecha)
+        facturas = db.get_facturas(vendedor=VENDEDOR_IDS, fecha=fecha)
         vista_activa = False
 
-    for f in facturas:
-        f["items"] = db.get_items(f["id"])
-        f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
+    _enrich_facturas(facturas)
 
     stats = {
         "pendiente": sum(1 for f in facturas if f["estado"] == "pendiente"),
@@ -144,15 +159,15 @@ async def repartidor_view(request: Request):
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    listos    = db.get_facturas(vendedor=VENDEDOR_ID, estados=["listo"])
-    en_camino = db.get_facturas(vendedor=VENDEDOR_ID, estados=["en_camino"])
-    for f in listos + en_camino:
-        f["items"] = db.get_items(f["id"])
-        f["estado_label"] = ESTADO_LABELS.get(f["estado"], f["estado"])
+    # Promoción automática de facturas cuya fecha_llegada ya pasó
+    db.auto_promover_llegados()
 
-    entregadas = db.get_facturas(vendedor=VENDEDOR_ID, estados=["entregado"])
-    for f in entregadas:
-        f["items"] = db.get_items(f["id"])
+    listos    = db.get_facturas(vendedor=VENDEDOR_IDS, estados=["listo"])
+    en_camino = db.get_facturas(vendedor=VENDEDOR_IDS, estados=["en_camino"])
+    _enrich_facturas(listos + en_camino)
+
+    entregadas = db.get_facturas(vendedor=VENDEDOR_IDS, estados=["entregado"])
+    _enrich_facturas(entregadas)
 
     return templates.TemplateResponse(
         "repartidor.html",
@@ -201,7 +216,7 @@ async def set_estado(factura_id: int, request: Request):
 
     permisos = {
         "admin":      ["pendiente", "en_envio", "listo", "en_camino", "entregado"],
-        "repartidor": ["en_camino", "entregado"],   # listo->en_camino lo hace el repartidor
+        "repartidor": ["en_camino", "entregado"],
     }
     if nuevo not in permisos.get(user["role"], []):
         raise HTTPException(status_code=403, detail="No tenés permiso para ese estado")
@@ -210,9 +225,31 @@ async def set_estado(factura_id: int, request: Request):
     return {"ok": True, "estado": nuevo, "label": ESTADO_LABELS.get(nuevo, nuevo)}
 
 
+@app.post("/api/factura/{factura_id}/llegada")
+async def set_llegada(factura_id: int, request: Request):
+    """Programa la fecha de llegada de un pedido. Fecha en YYYY-MM-DD o vacío para borrar."""
+    user = current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin")
+
+    body  = await request.json()
+    fecha = (body.get("fecha") or "").strip()
+
+    # Validar formato si se envió fecha
+    if fecha:
+        try:
+            datetime.strptime(fecha, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido (esperado YYYY-MM-DD)")
+
+    db.set_fecha_llegada(factura_id, fecha or None)
+    display = datetime.strptime(fecha, "%Y-%m-%d").strftime("%d/%m/%Y") if fecha else ""
+    return {"ok": True, "fecha_llegada": fecha, "display": display}
+
+
 @app.post("/api/foto/{factura_id}")
 async def upload_foto(factura_id: int, request: Request, foto: UploadFile = File(...)):
-    """Sube foto del remito firmado (base64 en SQLite)."""
+    """Sube foto del remito firmado (base64 en Turso)."""
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -245,7 +282,6 @@ async def crear_factura_manual(request: Request):
         raise HTTPException(status_code=400, detail="Cliente y domicilio son requeridos")
 
     if not numero:
-        from datetime import datetime
         numero = f"MANUAL-{datetime.now().strftime('%d%m%y-%H%M%S')}"
 
     if db.factura_exists(numero):
@@ -269,7 +305,6 @@ async def crear_factura_manual(request: Request):
 
 @app.delete("/api/factura/{factura_id}")
 async def eliminar_factura(factura_id: int, request: Request):
-    """Elimina una factura y sus items (solo admin)."""
     user = current_user(request)
     if not user or user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Solo admin")
@@ -279,7 +314,6 @@ async def eliminar_factura(factura_id: int, request: Request):
 
 @app.post("/api/facturas/limpiar-sin-items")
 async def limpiar_sin_items(request: Request):
-    """Borra pedidos pendientes sin items para que el watcher los reimporte."""
     user = current_user(request)
     if not user or user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Solo admin")
@@ -289,7 +323,6 @@ async def limpiar_sin_items(request: Request):
 
 @app.get("/api/foto/{factura_id}")
 async def get_foto_endpoint(factura_id: int, request: Request):
-    """Devuelve la foto del remito como imagen."""
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=401)
@@ -323,9 +356,10 @@ async def status():
         db_error = str(e)
 
     return {
-        "ok":          db_ok,
-        "storage":     "turso" if using_turso else "sqlite_local",
-        "turso_url":   turso_url[:40] + "..." if turso_url else "(no configurado)",
+        "ok":             db_ok,
+        "storage":        "turso" if using_turso else "sqlite_local",
+        "turso_url":      turso_url[:40] + "..." if turso_url else "(no configurado)",
         "facturas_en_db": count,
-        "error":       db_error,
+        "vendedores":     VENDEDOR_IDS,
+        "error":          db_error,
     }

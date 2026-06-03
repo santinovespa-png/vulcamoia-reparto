@@ -9,8 +9,8 @@ services:
         generateValue: true
       - key: API_KEY
         value: vulcamoia-api-key-2024
-      - key: VENDEDOR_ID
-        value: "197"
+      - key: VENDEDOR_IDS
+        value: "197,212"
       - key: ADMIN_PASSWORD
         value: vulcamoia2024
       - key: REPARTO_PASSWORD

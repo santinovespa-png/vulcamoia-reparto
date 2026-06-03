@@ -5,8 +5,10 @@ import os
 #  variables de entorno en Render)
 # ============================================================
 
-# Número de vendedor a filtrar
-VENDEDOR_ID = int(os.environ.get("VENDEDOR_ID", "197"))
+# Vendedores a filtrar — puede ser lista separada por coma: "197,212"
+_raw_ids = os.environ.get("VENDEDOR_IDS", os.environ.get("VENDEDOR_ID", "197,212"))
+VENDEDOR_IDS = [int(v.strip()) for v in _raw_ids.split(",") if v.strip().isdigit()]
+VENDEDOR_ID  = VENDEDOR_IDS[0]   # alias backward-compat (para el header del panel)
 
 # Clave secreta para sesiones
 SECRET_KEY = os.environ.get("SECRET_KEY", "vulcamoia-ba-reparto-2024-clave-secreta")

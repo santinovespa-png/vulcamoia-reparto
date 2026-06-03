@@ -176,6 +176,33 @@
                     </div>
                     {% endif %}
 
+                    <!-- Fecha de llegada programada -->
+                    {% if f.estado in ['pendiente', 'en_envio', 'listo'] %}
+                    <div class="llegada-section" id="llegada-sec-{{ f.id }}">
+                        {% if f.fecha_llegada_display %}
+                        <div class="llegada-badge-row">
+                            <span class="llegada-badge {% if f.estado == 'listo' %}llegada-ok{% endif %}">
+                                {% if f.estado == 'listo' %}✅{% else %}📅{% endif %}
+                                Llega el {{ f.fecha_llegada_display }}
+                                {% if f.estado == 'listo' %}<span class="llegada-badge-sub">ya habilitado</span>{% endif %}
+                            </span>
+                            {% if f.estado != 'listo' %}
+                            <button class="btn-edit-llegada" onclick="editarLlegada({{ f.id }}, '{{ f.fecha_llegada }}')" title="Cambiar fecha">✎</button>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <button class="btn-set-llegada" onclick="editarLlegada({{ f.id }}, '')">
+                            📅 Programar llegada
+                        </button>
+                        {% endif %}
+                        <div class="llegada-input-wrap" id="llegada-input-{{ f.id }}" style="display:none">
+                            <input type="date" id="llegada-date-{{ f.id }}" class="llegada-date-input">
+                            <button class="btn-llegada-guardar ripple-host" onclick="guardarLlegada({{ f.id }})">Guardar</button>
+                            <button class="btn-llegada-cancel" onclick="cancelarLlegada({{ f.id }})">✕</button>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- Pills: admin puede cambiar a cualquier estado -->
                     <div class="estado-pills">
                         <button class="estado-pill ep-pendiente {% if f.estado == 'pendiente' %}active{% endif %}"

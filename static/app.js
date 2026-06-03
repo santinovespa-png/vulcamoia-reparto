@@ -406,3 +406,73 @@ document.addEventListener('click', function(e) {
         if (!btn.disabled) btn.classList.add('ripple-host');
     });
 })();
+
+// =========================================================
+//  FECHA LLEGADA — programar arribo automático
+// =========================================================
+function editarLlegada(facturaId, fechaActual) {
+    const wrap = document.getElementById('llegada-input-' + facturaId);
+    if (!wrap) return;
+    const input = document.getElementById('llegada-date-' + facturaId);
+    if (input && fechaActual) input.value = fechaActual;
+    wrap.style.display = 'flex';
+    if (input) input.focus();
+}
+
+function cancelarLlegada(facturaId) {
+    const wrap = document.getElementById('llegada-input-' + facturaId);
+    if (wrap) wrap.style.display = 'none';
+}
+
+async function guardarLlegada(facturaId) {
+    const input = document.getElementById('llegada-date-' + facturaId);
+    if (!input) return;
+    const fecha = input.value.trim(); // YYYY-MM-DD o vacío
+
+    const wrap = document.getElementById('llegada-input-' + facturaId);
+    const sec  = document.getElementById('llegada-sec-' + facturaId);
+
+    try {
+        const res = await fetch(`/api/factura/${facturaId}/llegada`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fecha }),
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (wrap) wrap.style.display = 'none';
+
+            // Actualizar UI sin recargar
+            if (sec) {
+                if (data.display) {
+                    sec.innerHTML = `
+                        <div class="llegada-badge-row">
+                            <span class="llegada-badge">📅 Llega el ${data.display}</span>
+                            <button class="btn-edit-llegada" onclick="editarLlegada(${facturaId}, '${fecha}')" title="Cambiar fecha">✎</button>
+                        </div>
+                        <div class="llegada-input-wrap" id="llegada-input-${facturaId}" style="display:none">
+                            <input type="date" id="llegada-date-${facturaId}" class="llegada-date-input" value="${fecha}">
+                            <button class="btn-llegada-guardar ripple-host" onclick="guardarLlegada(${facturaId})">Guardar</button>
+                            <button class="btn-llegada-cancel" onclick="cancelarLlegada(${facturaId})">✕</button>
+                        </div>`;
+                } else {
+                    sec.innerHTML = `
+                        <button class="btn-set-llegada" onclick="editarLlegada(${facturaId}, '')">
+                            📅 Programar llegada
+                        </button>
+                        <div class="llegada-input-wrap" id="llegada-input-${facturaId}" style="display:none">
+                            <input type="date" id="llegada-date-${facturaId}" class="llegada-date-input">
+                            <button class="btn-llegada-guardar ripple-host" onclick="guardarLlegada(${facturaId})">Guardar</button>
+                            <button class="btn-llegada-cancel" onclick="cancelarLlegada(${facturaId})">✕</button>
+                        </div>`;
+                }
+            }
+        } else {
+            const err = await res.json().catch(() => ({}));
+            alert('Error: ' + (err.detail || 'No se pudo guardar la fecha'));
+        }
+    } catch {
+        alert('Error de conexión');
+    }
+}

@@ -79,10 +79,9 @@ def _turso_exec(sql: str, params=()):
     cols = [c["name"] for c in r.get("cols", [])]
     rows = [[_from_val(v) for v in row] for row in r.get("rows", [])]
 
-    # last_insert_rowid puede venir como string "5" o None/"0" si no hubo INSERT
     raw = r.get("last_insert_rowid")
     try:
-        lastrow = int(raw) or None   # 0 -> None, cualquier ID real -> int
+        lastrow = int(raw) or None
     except (TypeError, ValueError):
         lastrow = None
 
@@ -217,11 +216,12 @@ def init_db():
     for col_sql in [
         "ALTER TABLE facturas ADD COLUMN foto_remito TEXT",
         "ALTER TABLE facturas ADD COLUMN fecha_listo TEXT",
+        "ALTER TABLE facturas ADD COLUMN fecha_llegada TEXT",   # YYYY-MM-DD — programada por admin
     ]:
         try:
             run(col_sql)
         except Exception:
-            pass
+            pass  # columna ya existe
 
 
 # ---------------------------------------------------------------------------
@@ -251,31 +251,51 @@ def insert_factura(data: dict, items: list):
 
 
 def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
+    """
+    vendedor: int, lista de ints, o None (todos)
+    estados:  lista de strings, o None (todos)
+    fecha:    YYYY-MM-DD — filtra por fecha de factura O fecha de entrega
+    """
     query = """
         SELECT id, numero_factura, fecha, cliente, domicilio, cuit, vendedor,
-               archivo, estado, fecha_en_envio, fecha_listo, fecha_en_camino, fecha_entregado,
-               (foto_remito IS NOT NULL AND foto_remito != '') AS has_foto,
+               archivo, estado, fecha_en_envio, fecha_listo, fecha_en_camino,
+               fecha_entregado, fecha_llegada,
+               CASE WHEN (foto_remito IS NOT NULL AND foto_remito != '') THEN 1 ELSE 0 END AS has_foto,
                created_at
         FROM facturas WHERE 1=1
     """
     params = []
+
+    # Filtro por vendedor: acepta int o lista de ints
     if vendedor is not None:
-        query += " AND vendedor = ?"
-        params.append(vendedor)
+        if isinstance(vendedor, (list, tuple)):
+            if len(vendedor) == 1:
+                query += " AND vendedor = ?"
+                params.append(vendedor[0])
+            elif len(vendedor) > 1:
+                query += f" AND vendedor IN ({','.join('?' * len(vendedor))})"
+                params.extend(vendedor)
+        else:
+            query += " AND vendedor = ?"
+            params.append(vendedor)
+
     if estados:
         query += f" AND estado IN ({','.join('?' * len(estados))})"
         params.extend(estados)
+
     if fecha:
-        # fecha llega como YYYY-MM-DD, pero la columna 'fecha' guarda DD/MM/YYYY
-        # Convertimos para comparar con la fecha real de la factura (no la de importacion)
+        # fecha llega como YYYY-MM-DD
+        # Muestra facturas cuya fecha de emisión coincida O fueron entregadas ese día
         try:
             from datetime import datetime as _dt
             d = _dt.strptime(fecha, "%Y-%m-%d")
             fecha_ddmmyyyy = d.strftime("%d/%m/%Y")
-            query += " AND fecha = ?"
-            params.append(fecha_ddmmyyyy)
+            fecha_iso      = d.strftime("%Y-%m-%d")
+            query += " AND (fecha = ? OR SUBSTR(fecha_entregado, 1, 10) = ?)"
+            params.extend([fecha_ddmmyyyy, fecha_iso])
         except ValueError:
             pass
+
     query += " ORDER BY created_at DESC"
     return fetchall(query, params)
 
@@ -285,13 +305,11 @@ def get_items(factura_id: int) -> list:
 
 
 def delete_factura(factura_id: int):
-    """Elimina una factura y sus items."""
     run("DELETE FROM items WHERE factura_id = ?", (factura_id,))
     run("DELETE FROM facturas WHERE id = ?", (factura_id,))
 
 
 def delete_facturas_sin_items() -> int:
-    """Elimina facturas pendientes que no tienen items. Devuelve cuantas borró."""
     sin_items = fetchall("""
         SELECT f.id FROM facturas f
         LEFT JOIN items i ON i.factura_id = f.id
@@ -316,6 +334,35 @@ def update_estado(factura_id: int, nuevo_estado: str):
     else:
         run("UPDATE facturas SET estado = ? WHERE id = ?",
             (nuevo_estado, factura_id))
+
+
+# ---------------------------------------------------------------------------
+# Fecha de llegada programada
+# ---------------------------------------------------------------------------
+
+def set_fecha_llegada(factura_id: int, fecha_iso):
+    """Guarda la fecha de llegada esperada (YYYY-MM-DD). None para borrarla."""
+    run("UPDATE facturas SET fecha_llegada = ? WHERE id = ?",
+        (fecha_iso or None, factura_id))
+
+
+def auto_promover_llegados() -> int:
+    """
+    Promueve a 'listo' las facturas cuya fecha_llegada ya pasó/llegó
+    y todavía están en 'pendiente' o 'en_envio'.
+    Devuelve cuántas se promovieron.
+    """
+    from datetime import date
+    hoy = date.today().isoformat()   # YYYY-MM-DD
+    to_promote = fetchall("""
+        SELECT id FROM facturas
+        WHERE fecha_llegada IS NOT NULL
+          AND fecha_llegada <= ?
+          AND estado IN ('pendiente', 'en_envio')
+    """, (hoy,))
+    for row in to_promote:
+        update_estado(row["id"], "listo")
+    return len(to_promote)
 
 
 # ---------------------------------------------------------------------------

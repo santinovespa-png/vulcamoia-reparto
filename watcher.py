@@ -3,10 +3,8 @@ WATCHER LOCAL - corre en la PC de la oficina
 Envia facturas de los ultimos DIAS_ATRAS dias al servidor en Render.
 El servidor deduplica automaticamente (no se duplican aunque se reenvien).
 
-Esto es necesario porque si Render reinicia, la base de datos se borra y
-el watcher la restaura automaticamente en la proxima pasada.
-
 Requisitos: pip install pdfplumber requests
+Para correr automaticamente sin CMD: usar watcher_silencioso.vbs + instalar_arranque.bat
 """
 
 import re
@@ -22,9 +20,9 @@ import requests
 RENDER_URL      = "https://vulcamoia-reparto.onrender.com"
 API_KEY         = "vulcamoia-api-key-2024"
 FACTURAS_FOLDER = r"\\central\omicrom\Sistema Toyo\FACTURAS"
-VENDEDOR_ID     = 197
-INTERVALO_SEG   = 30    # segundos entre escaneos
-DIAS_ATRAS      = 1     # procesa ayer y hoy (pedidos del dia anterior + los nuevos)
+VENDEDOR_IDS    = [197, 212]    # lista de vendedores a importar
+INTERVALO_SEG   = 30            # segundos entre escaneos
+DIAS_ATRAS      = 1             # procesa ayer y hoy
 # ============================================================
 
 
@@ -37,12 +35,7 @@ def es_reciente(path: Path) -> bool:
 # ---- Parser integrado ----
 
 def _extraer_items(text: str) -> list:
-    """Extrae items de la factura.
-    Busca lineas con formato: CANTIDAD  DESCRIPCION [precio_unit precio_total]
-    Los precios son opcionales — lo importante es cantidad y detalle (medida/diseno).
-    Funciona con cubiertas: '4 205/55R16 PIRELLI P7  1.234,56  4.938,24'
-    """
-    PRECIO_PAT = r'[\d]+(?:[.,]\d{3})*[.,]\d{2}'  # numero con decimales obligatorios
+    PRECIO_PAT = r'[\d]+(?:[.,]\d{3})*[.,]\d{2}'
 
     items = []
     lines = text.split("\n")
@@ -61,7 +54,6 @@ def _extraer_items(text: str) -> list:
         if not line:
             continue
 
-        # Toda linea de item empieza con 1-4 digitos (cantidad) + espacio + descripcion
         m = re.match(r'^(\d{1,4})\s+(.+)$', line)
         if not m:
             continue
@@ -72,10 +64,8 @@ def _extraer_items(text: str) -> list:
 
         resto = m.group(2).strip()
 
-        # Intenta quitar precios del final (pueden estar o no)
         precios = re.findall(PRECIO_PAT, resto)
         if len(precios) >= 2:
-            # Sacar los ultimos 2 precios del detalle
             p1, p2 = precios[-2], precios[-1]
             detalle = resto
             detalle = re.sub(r'\s+' + re.escape(p2) + r'$', '', detalle).strip()
@@ -175,7 +165,7 @@ def ciclo():
             continue
 
         vendedor_pdf = data.get("vendedor")
-        if vendedor_pdf != VENDEDOR_ID:
+        if vendedor_pdf not in VENDEDOR_IDS:
             print(f"  [skip] {pdf.name} -> vendedor {vendedor_pdf}")
             continue
 
@@ -190,7 +180,7 @@ def main():
     print("  Vulcamoia - Watcher de Facturas")
     print(f"  Carpeta : {FACTURAS_FOLDER}")
     print(f"  Servidor: {RENDER_URL}")
-    print(f"  Vendedor: {VENDEDOR_ID}")
+    print(f"  Vendedores: {VENDEDOR_IDS}")
     print(f"  Escanea cada {INTERVALO_SEG}s | ultimos {DIAS_ATRAS} dias")
     print("=" * 52)
     print()
