@@ -124,10 +124,44 @@
 
         <!-- Admin actions bar -->
         <div class="admin-actions-bar">
+            <button class="btn-llegada-masiva ripple-host" onclick="abrirLlegadaMasiva()"
+                    title="Programar fecha de llegada para todos los pedidos activos de una vez">
+                📅 Llegada masiva
+            </button>
             <button class="btn-reimportar" onclick="limpiarSinItems()"
                     title="Borra los pedidos sin ítems para que el watcher los reimporte con datos completos">
                 🔃 Reimportar sin ítems
             </button>
+        </div>
+
+        <!-- Modal llegada masiva -->
+        <div id="llegada-masiva-modal" class="modal-overlay form-modal-overlay" style="display:none"
+             onclick="cerrarLlegadaMasiva(event)">
+            <div class="form-modal-card" style="max-width:420px" onclick="event.stopPropagation()">
+                <div class="form-modal-header">
+                    <h2>📅 Llegada masiva</h2>
+                    <button class="form-modal-close" onclick="cerrarLlegadaMasiva()">✕</button>
+                </div>
+                <div class="form-modal-body">
+                    <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem">
+                        Seleccioná la fecha en que llegan las cubiertas a Buenos Aires.<br>
+                        Se aplica a <strong id="lm-count" style="color:var(--accent)">0 pedidos</strong>
+                        activos (pendiente + en envío) visibles ahora.
+                    </p>
+                    <div class="form-group">
+                        <label>Fecha de llegada</label>
+                        <input type="date" id="lm-fecha" class="llegada-date-input"
+                               style="width:100%;padding:.65rem .9rem;font-size:1rem">
+                    </div>
+                    <div id="lm-error" class="form-error" style="display:none"></div>
+                </div>
+                <div class="form-modal-footer">
+                    <button class="btn btn-secondary" onclick="cerrarLlegadaMasiva()">Cancelar</button>
+                    <button class="btn btn-envio ripple-host" id="lm-btn-guardar" onclick="confirmarLlegadaMasiva()">
+                        Aplicar a todos
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Lista de facturas -->

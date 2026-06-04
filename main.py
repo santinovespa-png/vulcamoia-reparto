@@ -191,7 +191,7 @@ async def importar_factura(request: Request):
     if key != API_KEY:
         raise HTTPException(status_code=403, detail="API key inválida")
 
-    body = await request.json()
+    body  = await request.json()
     data  = body.get("factura", {})
     items = body.get("items", [])
 
@@ -199,6 +199,15 @@ async def importar_factura(request: Request):
         raise HTTPException(status_code=400, detail="Faltan datos de la factura")
 
     if db.factura_exists(data["numero"]):
+        # Si la factura existe pero NO tiene items, actualizarlos ahora
+        if items:
+            factura = db.get_factura_by_numero(data["numero"])
+            if factura:
+                existing = db.get_items(factura["id"])
+                if not existing:
+                    db.insert_items(factura["id"], items)
+                    return {"ok": True, "importada": False, "razon": "items actualizados",
+                            "numero": data["numero"]}
         return {"ok": True, "importada": False, "razon": "ya existe"}
 
     db.insert_factura(data, items)
@@ -310,6 +319,32 @@ async def eliminar_factura(factura_id: int, request: Request):
         raise HTTPException(status_code=403, detail="Solo admin")
     db.delete_factura(factura_id)
     return {"ok": True}
+
+
+@app.post("/api/facturas/llegada-masiva")
+async def llegada_masiva(request: Request):
+    """Programa la misma fecha de llegada para una lista de facturas de una vez."""
+    user = current_user(request)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin")
+
+    body  = await request.json()
+    fecha = (body.get("fecha") or "").strip()   # YYYY-MM-DD
+    ids   = body.get("ids", [])                  # lista de factura_id
+
+    if not fecha or not ids:
+        raise HTTPException(status_code=400, detail="Se requieren fecha e ids")
+
+    try:
+        datetime.strptime(fecha, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido (YYYY-MM-DD)")
+
+    for factura_id in ids:
+        db.set_fecha_llegada(int(factura_id), fecha)
+
+    display = datetime.strptime(fecha, "%Y-%m-%d").strftime("%d/%m/%Y")
+    return {"ok": True, "actualizadas": len(ids), "display": display}
 
 
 @app.post("/api/facturas/limpiar-sin-items")

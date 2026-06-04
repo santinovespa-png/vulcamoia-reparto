@@ -560,6 +560,24 @@ body {
     justify-content: flex-end;
     margin-bottom: .9rem;
 }
+.btn-llegada-masiva {
+    background: rgba(255,194,14,.12);
+    border: 1.5px solid rgba(255,194,14,.35);
+    border-radius: 10px;
+    padding: .4rem .9rem;
+    font-size: .82rem;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all .18s;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+}
+.btn-llegada-masiva:hover {
+    background: rgba(255,194,14,.22);
+    border-color: rgba(255,194,14,.6);
+    box-shadow: 0 0 12px rgba(255,194,14,.2);
+}
+
 .btn-reimportar {
     background: var(--dark-2);
     border: 1px solid var(--border-s);

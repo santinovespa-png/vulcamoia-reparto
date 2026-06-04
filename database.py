@@ -233,6 +233,22 @@ def factura_exists(numero: str) -> bool:
     return row is not None
 
 
+def get_factura_by_numero(numero: str):
+    return fetchone("SELECT id FROM facturas WHERE numero_factura = ?", (numero,))
+
+
+def insert_items(factura_id: int, items: list):
+    """Inserta items para una factura. Borra los previos si ya existen."""
+    run("DELETE FROM items WHERE factura_id = ?", (factura_id,))
+    for item in items:
+        run(
+            """INSERT INTO items (factura_id, cantidad, detalle, precio_unit, precio_total)
+               VALUES (?, ?, ?, ?, ?)""",
+            (factura_id, item["cantidad"], item["detalle"],
+             item.get("precio_unit", 0), item.get("precio_total", 0)),
+        )
+
+
 def insert_factura(data: dict, items: list):
     factura_id = run(
         """INSERT INTO facturas
@@ -241,13 +257,7 @@ def insert_factura(data: dict, items: list):
         (data["numero"], data["fecha"], data["cliente"],
          data["domicilio"], data["cuit"], data["vendedor"], data["archivo"]),
     )
-    for item in items:
-        run(
-            """INSERT INTO items (factura_id, cantidad, detalle, precio_unit, precio_total)
-               VALUES (?, ?, ?, ?, ?)""",
-            (factura_id, item["cantidad"], item["detalle"],
-             item.get("precio_unit", 0), item.get("precio_total", 0)),
-        )
+    insert_items(factura_id, items)
 
 
 def get_facturas(vendedor=None, estados=None, fecha=None) -> list:

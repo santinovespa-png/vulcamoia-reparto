@@ -408,6 +408,99 @@ document.addEventListener('click', function(e) {
 })();
 
 // =========================================================
+//  LLEGADA MASIVA — programar fecha para todos los activos
+// =========================================================
+function _idsActivos() {
+    // Devuelve IDs de cards visibles con estado pendiente o en_envio
+    const ids = [];
+    document.querySelectorAll('.factura-card').forEach(card => {
+        if (card.style.display === 'none') return;
+        const estado = card.dataset.estado;
+        if (estado === 'pendiente' || estado === 'en_envio') {
+            ids.push(parseInt(card.dataset.id));
+        }
+    });
+    return ids;
+}
+
+function abrirLlegadaMasiva() {
+    const ids = _idsActivos();
+    document.getElementById('lm-count').textContent = ids.length + ' pedido' + (ids.length !== 1 ? 's' : '');
+    // Fecha de hoy como default
+    document.getElementById('lm-fecha').value = new Date().toLocaleDateString('en-CA');
+    document.getElementById('lm-error').style.display = 'none';
+    document.getElementById('llegada-masiva-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function cerrarLlegadaMasiva(e) {
+    if (e && e.target !== document.getElementById('llegada-masiva-modal')) return;
+    document.getElementById('llegada-masiva-modal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+async function confirmarLlegadaMasiva() {
+    const fecha = document.getElementById('lm-fecha').value;
+    const errEl = document.getElementById('lm-error');
+    errEl.style.display = 'none';
+
+    if (!fecha) { errEl.textContent = 'Seleccioná una fecha.'; errEl.style.display = 'block'; return; }
+
+    const ids = _idsActivos();
+    if (!ids.length) { errEl.textContent = 'No hay pedidos activos visibles.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('lm-btn-guardar');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+        const res = await fetch('/api/facturas/llegada-masiva', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fecha, ids }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+            document.getElementById('llegada-masiva-modal').style.display = 'none';
+            document.body.style.overflow = '';
+            // Actualizar badges en todas las cards afectadas
+            ids.forEach(id => {
+                const sec = document.getElementById('llegada-sec-' + id);
+                if (sec) {
+                    sec.innerHTML = `
+                        <div class="llegada-badge-row">
+                            <span class="llegada-badge">📅 Llega el ${data.display}</span>
+                            <button class="btn-edit-llegada" onclick="editarLlegada(${id}, '${fecha}')" title="Cambiar fecha">✎</button>
+                        </div>
+                        <div class="llegada-input-wrap" id="llegada-input-${id}" style="display:none">
+                            <input type="date" id="llegada-date-${id}" class="llegada-date-input" value="${fecha}">
+                            <button class="btn-llegada-guardar ripple-host" onclick="guardarLlegada(${id})">Guardar</button>
+                            <button class="btn-llegada-cancel" onclick="cancelarLlegada(${id})">✕</button>
+                        </div>`;
+                }
+            });
+            // Toast de confirmación
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--dark);padding:.65rem 1.4rem;border-radius:12px;font-weight:700;font-size:.9rem;z-index:9999;box-shadow:0 4px 20px rgba(255,194,14,.5)';
+            toast.textContent = `✅ ${data.actualizadas} pedidos programados para el ${data.display}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        } else {
+            errEl.textContent = data.detail || 'Error al guardar.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Aplicar a todos';
+        }
+    } catch {
+        errEl.textContent = 'Error de conexión.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Aplicar a todos';
+    }
+}
+
+// =========================================================
 //  FECHA LLEGADA — programar arribo automático
 // =========================================================
 function editarLlegada(facturaId, fechaActual) {

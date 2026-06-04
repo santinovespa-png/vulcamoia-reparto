@@ -7,6 +7,8 @@ Requisitos: pip install pdfplumber requests
 Para correr automaticamente sin CMD: usar watcher_silencioso.vbs + instalar_arranque.bat
 """
 
+import logging
+import os
 import re
 import time
 from datetime import date, timedelta
@@ -24,6 +26,21 @@ VENDEDOR_IDS    = [197, 212]    # lista de vendedores a importar
 INTERVALO_SEG   = 30            # segundos entre escaneos
 DIAS_ATRAS      = 1             # procesa ayer y hoy
 # ============================================================
+
+# ---- Log a archivo (visible aunque corra en segundo plano) ----
+_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watcher_log.txt")
+logging.basicConfig(
+    filename=_log_path,
+    level=logging.INFO,
+    format="%(asctime)s  %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    encoding="utf-8",
+)
+
+def log(msg: str):
+    """Escribe en consola Y en watcher_log.txt."""
+    print(msg)
+    logging.info(msg)
 
 
 def es_reciente(path: Path) -> bool:
@@ -126,79 +143,84 @@ def enviar(data: dict, items: list) -> bool:
     try:
         r = requests.post(
             f"{RENDER_URL}/api/importar",
-            json={"factura": data, "items": items},
+            # force_items=True: si la factura ya existe pero sin items, el servidor los guarda
+            json={"factura": data, "items": items, "force_items": True},
             headers={"X-API-Key": API_KEY},
             timeout=20,
         )
         if r.status_code == 200:
             resp = r.json()
             if resp.get("importada"):
-                print(f"  [OK] Importada: {data['numero']} - {data['cliente']} ({len(items)} items)")
+                log(f"  [OK] Nueva: {data['numero']} - {data['cliente']} ({len(items)} items)")
+            elif resp.get("razon") == "items actualizados":
+                log(f"  [UP] Items guardados: {data['numero']} ({len(items)} items)")
             else:
-                print(f"  [--] Ya existia: {data['numero']}")
+                log(f"  [--] Ya existia: {data['numero']}")
             return True
         else:
-            print(f"  [ERR] Servidor ({r.status_code}): {r.text[:100]}")
+            log(f"  [ERR] Servidor ({r.status_code}): {r.text[:200]}")
             return False
     except requests.RequestException as e:
-        print(f"  [ERR] Sin conexion: {e}")
+        log(f"  [ERR] Sin conexion: {e}")
         return False
 
 
 def ciclo():
     folder = Path(FACTURAS_FOLDER)
     if not folder.exists():
-        print(f"  [!] Carpeta no accesible: {folder}")
+        log(f"  [!] Carpeta no accesible: {folder}")
         return
 
     pdfs = sorted(folder.glob("*.PDF")) + sorted(folder.glob("*.pdf"))
     recientes = [p for p in pdfs if es_reciente(p)]
 
     if not recientes:
-        print("  (sin facturas recientes)")
+        log("  (sin facturas recientes)")
         return
 
     for pdf in recientes:
         data, items = parsear_pdf(pdf)
 
         if not data:
-            print(f"  [?] No se pudo parsear: {pdf.name}")
+            log(f"  [?] No se pudo parsear: {pdf.name}")
             continue
 
         vendedor_pdf = data.get("vendedor")
         if vendedor_pdf not in VENDEDOR_IDS:
-            print(f"  [skip] {pdf.name} -> vendedor {vendedor_pdf}")
+            log(f"  [skip] {pdf.name} -> vendedor {vendedor_pdf}")
             continue
 
         if not items:
-            print(f"  [!] Sin items detectados en {pdf.name} (se importa igual)")
+            log(f"  [!] Sin items en {pdf.name} — se envia igual, revisar formato PDF")
+        else:
+            log(f"  [.] {pdf.name} -> {len(items)} items, vendedor {vendedor_pdf}")
 
         enviar(data, items)
 
 
 def main():
-    print("=" * 52)
-    print("  Vulcamoia - Watcher de Facturas")
-    print(f"  Carpeta : {FACTURAS_FOLDER}")
-    print(f"  Servidor: {RENDER_URL}")
-    print(f"  Vendedores: {VENDEDOR_IDS}")
-    print(f"  Escanea cada {INTERVALO_SEG}s | ultimos {DIAS_ATRAS} dias")
-    print("=" * 52)
-    print()
+    log("=" * 52)
+    log("  Vulcamoia - Watcher de Facturas")
+    log(f"  Carpeta : {FACTURAS_FOLDER}")
+    log(f"  Servidor: {RENDER_URL}")
+    log(f"  Vendedores: {VENDEDOR_IDS}")
+    log(f"  Log     : {_log_path}")
+    log(f"  Escanea cada {INTERVALO_SEG}s | ultimos {DIAS_ATRAS} dias")
+    log("=" * 52)
 
     try:
         import pdfplumber  # noqa
     except ImportError:
-        print("ERROR: falta instalar pdfplumber.")
-        print("Ejecuta: pip install pdfplumber requests")
+        log("ERROR: falta instalar pdfplumber.")
+        log("Ejecuta: pip install pdfplumber requests")
         return
 
     while True:
-        print(f"[{date.today()}] Escaneando...")
+        log(f"[{date.today()}] Escaneando...")
         try:
             ciclo()
         except Exception as e:
-            print(f"  [ERR] Error inesperado: {e}")
+            log(f"  [ERR] Error inesperado: {e}")
         time.sleep(INTERVALO_SEG)
 
 
