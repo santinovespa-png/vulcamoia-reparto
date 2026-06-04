@@ -172,6 +172,12 @@ def enviar(data: dict, items: list) -> bool:
                 else:
                     log(f"  [--] Ya existia: {data['numero']}")
                 return True
+            elif r.status_code in (500, 502, 503):
+                log(f"  [!] Error {r.status_code} intento {intento}/2 — {data['numero']}")
+                if intento < 2:
+                    time.sleep(5)   # esperar 5 segundos y reintentar
+                    continue
+                return False
             else:
                 log(f"  [ERR] Servidor ({r.status_code}): {r.text[:200]}")
                 return False
