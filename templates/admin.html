@@ -347,29 +347,10 @@
     </div>
 </div>
 
-<!-- Modal llegada masiva — FUERA del container para evitar conflictos de z-index -->
-<div id="llegada-masiva-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;padding:1rem">
-    <div style="background:var(--dark-2);border:1px solid rgba(255,194,14,.3);border-radius:20px;width:100%;max-width:420px;overflow:hidden;animation:fadeUp .25s ease;box-shadow:0 20px 60px rgba(0,0,0,.7)">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);background:var(--dark-3)">
-            <span style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:.06em">📅 Llegada masiva</span>
-            <button onclick="cerrarLlegadaMasiva()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:.25rem .4rem;border-radius:6px">✕</button>
-        </div>
-        <div style="padding:1.5rem">
-            <p style="color:var(--muted);font-size:.88rem;margin-bottom:1.2rem;line-height:1.5">
-                Seleccioná la fecha en que llegan las cubiertas a Buenos Aires.<br>
-                Se aplica a <strong id="lm-count" style="color:var(--accent)">0 pedidos</strong> activos visibles.
-            </p>
-            <label style="display:block;font-weight:700;margin-bottom:.5rem;font-size:.85rem">Fecha de llegada</label>
-            <input type="date" id="lm-fecha"
-                   style="width:100%;padding:.7rem 1rem;border:1.5px solid rgba(255,194,14,.4);border-radius:10px;background:#fff;color:#111;font-size:1rem;font-family:'Inter',sans-serif;outline:none">
-            <div id="lm-error" style="display:none;background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:.5rem .8rem;font-size:.85rem;margin-top:.75rem"></div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;gap:.75rem;padding:1rem 1.5rem;border-top:1px solid var(--border);background:var(--dark-3)">
-            <button onclick="cerrarLlegadaMasiva()" class="btn btn-secondary">Cancelar</button>
-            <button onclick="confirmarLlegadaMasiva()" id="lm-btn-guardar" class="btn btn-envio ripple-host">Aplicar a todos</button>
-        </div>
-    </div>
-</div>
+<!-- Input oculto para llegada masiva — se abre con showPicker() al tocar el botón -->
+<input type="date" id="lm-fecha-picker"
+       style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;width:1px;height:1px"
+       onchange="aplicarLlegadaMasiva(this.value)">
 
 <script src="/static/app.js"></script>
 </body>

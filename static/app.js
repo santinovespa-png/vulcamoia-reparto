@@ -408,10 +408,9 @@ document.addEventListener('click', function(e) {
 })();
 
 // =========================================================
-//  LLEGADA MASIVA — programar fecha para todos los activos
+//  LLEGADA MASIVA — date picker nativo, aplica automático
 // =========================================================
 function _idsActivos() {
-    // Devuelve IDs de cards visibles con estado pendiente o en_envio
     const ids = [];
     document.querySelectorAll('.factura-card').forEach(card => {
         if (card.style.display === 'none') return;
@@ -423,51 +422,40 @@ function _idsActivos() {
     return ids;
 }
 
-function _isoHoy() {
-    const d = new Date();
-    return d.getFullYear() + '-'
-        + String(d.getMonth() + 1).padStart(2, '0') + '-'
-        + String(d.getDate()).padStart(2, '0');
-}
-
 function abrirLlegadaMasiva() {
     const ids = _idsActivos();
-    const countEl = document.getElementById('lm-count');
-    if (countEl) countEl.textContent = ids.length + ' pedido' + (ids.length !== 1 ? 's' : '');
-
-    const fechaEl = document.getElementById('lm-fecha');
-    if (fechaEl) fechaEl.value = _isoHoy();
-
-    const errEl = document.getElementById('lm-error');
-    if (errEl) errEl.style.display = 'none';
-
-    const modal = document.getElementById('llegada-masiva-modal');
-    if (modal) {
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
+    if (!ids.length) {
+        mostrarToast('⚠ No hay pedidos activos visibles (pendiente o en envío)', '#f97316');
+        return;
+    }
+    const input = document.getElementById('lm-fecha-picker');
+    if (!input) return;
+    input.min = _isoHoy();
+    input.value = '';
+    // Abrir el date picker nativo del sistema operativo
+    try {
+        input.showPicker();
+    } catch (e) {
+        // Fallback para navegadores que no soportan showPicker
+        input.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;opacity:1;pointer-events:auto;width:200px;height:40px;font-size:1rem';
+        input.focus();
+        input.click();
+        setTimeout(() => {
+            input.style.cssText = 'position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;width:1px;height:1px';
+        }, 5000);
     }
 }
 
-function cerrarLlegadaMasiva(e) {
-    if (e && e.target !== document.getElementById('llegada-masiva-modal')) return;
-    const modal = document.getElementById('llegada-masiva-modal');
-    if (modal) modal.style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-async function confirmarLlegadaMasiva() {
-    const fecha = document.getElementById('lm-fecha').value;
-    const errEl = document.getElementById('lm-error');
-    errEl.style.display = 'none';
-
-    if (!fecha) { errEl.textContent = 'Seleccioná una fecha.'; errEl.style.display = 'block'; return; }
+async function aplicarLlegadaMasiva(fecha) {
+    if (!fecha) return;
+    // Ocultar el input de vuelta
+    const input = document.getElementById('lm-fecha-picker');
+    if (input) input.style.cssText = 'position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;width:1px;height:1px';
 
     const ids = _idsActivos();
-    if (!ids.length) { errEl.textContent = 'No hay pedidos activos visibles.'; errEl.style.display = 'block'; return; }
+    if (!ids.length) return;
 
-    const btn = document.getElementById('lm-btn-guardar');
-    btn.disabled = true;
-    btn.textContent = 'Guardando...';
+    mostrarToast('⏳ Guardando fechas...', '#888', 60000);
 
     try {
         const res = await fetch('/api/facturas/llegada-masiva', {
@@ -477,10 +465,11 @@ async function confirmarLlegadaMasiva() {
         });
         const data = await res.json().catch(() => ({}));
 
+        // Quitar toast de "guardando"
+        document.querySelectorAll('._toast').forEach(t => t.remove());
+
         if (res.ok) {
-            document.getElementById('llegada-masiva-modal').style.display = 'none';
-            document.body.style.overflow = '';
-            // Actualizar badges en todas las cards afectadas
+            // Actualizar badge en cada card
             ids.forEach(id => {
                 const sec = document.getElementById('llegada-sec-' + id);
                 if (sec) {
@@ -496,24 +485,24 @@ async function confirmarLlegadaMasiva() {
                         </div>`;
                 }
             });
-            // Toast de confirmación
-            const toast = document.createElement('div');
-            toast.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--dark);padding:.65rem 1.4rem;border-radius:12px;font-weight:700;font-size:.9rem;z-index:9999;box-shadow:0 4px 20px rgba(255,194,14,.5)';
-            toast.textContent = `✅ ${data.actualizadas} pedidos programados para el ${data.display}`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3500);
+            mostrarToast(`✅ ${data.actualizadas} pedidos → llegan el ${data.display}`, 'var(--accent)', 4000);
         } else {
-            errEl.textContent = data.detail || 'Error al guardar.';
-            errEl.style.display = 'block';
-            btn.disabled = false;
-            btn.textContent = 'Aplicar a todos';
+            mostrarToast('❌ ' + (data.detail || 'Error al guardar'), '#ef4444');
         }
     } catch {
-        errEl.textContent = 'Error de conexión.';
-        errEl.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = 'Aplicar a todos';
+        document.querySelectorAll('._toast').forEach(t => t.remove());
+        mostrarToast('❌ Error de conexión', '#ef4444');
     }
+}
+
+function mostrarToast(msg, color, ms) {
+    document.querySelectorAll('._toast').forEach(t => t.remove());
+    const t = document.createElement('div');
+    t.className = '_toast';
+    t.style.cssText = `position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:${color || 'var(--accent)'};color:${color === 'var(--accent)' ? 'var(--dark)' : '#fff'};padding:.7rem 1.5rem;border-radius:12px;font-weight:700;font-size:.9rem;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), ms || 3500);
 }
 
 // =========================================================
