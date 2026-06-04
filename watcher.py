@@ -139,33 +139,56 @@ def parsear_pdf(pdf_path: Path):
     return data, _extraer_items(text)
 
 
-def enviar(data: dict, items: list) -> bool:
+def despertar_servidor():
+    """Ping al servidor para que despierte (Render free tier duerme tras inactividad).
+    El primer request puede tardar 50-90 segundos.
+    """
+    log("  [~] Verificando servidor...")
     try:
-        r = requests.post(
-            f"{RENDER_URL}/api/importar",
-            # force_items=True: si la factura ya existe pero sin items, el servidor los guarda
-            json={"factura": data, "items": items, "force_items": True},
-            headers={"X-API-Key": API_KEY},
-            timeout=20,
-        )
-        if r.status_code == 200:
-            resp = r.json()
-            if resp.get("importada"):
-                log(f"  [OK] Nueva: {data['numero']} - {data['cliente']} ({len(items)} items)")
-            elif resp.get("razon") == "items actualizados":
-                log(f"  [UP] Items guardados: {data['numero']} ({len(items)} items)")
-            else:
-                log(f"  [--] Ya existia: {data['numero']}")
-            return True
-        else:
-            log(f"  [ERR] Servidor ({r.status_code}): {r.text[:200]}")
-            return False
+        r = requests.get(f"{RENDER_URL}/api/status", timeout=90)
+        log(f"  [~] Servidor OK (status {r.status_code})")
+        return True
     except requests.RequestException as e:
-        log(f"  [ERR] Sin conexion: {e}")
+        log(f"  [!] Servidor no responde: {e}")
         return False
 
 
+def enviar(data: dict, items: list) -> bool:
+    for intento in range(1, 3):   # hasta 2 intentos
+        try:
+            r = requests.post(
+                f"{RENDER_URL}/api/importar",
+                # force_items=True: si la factura ya existe pero sin items, el servidor los guarda
+                json={"factura": data, "items": items, "force_items": True},
+                headers={"X-API-Key": API_KEY},
+                timeout=90,   # Render free tier puede tardar 50-90 s en despertar
+            )
+            if r.status_code == 200:
+                resp = r.json()
+                if resp.get("importada"):
+                    log(f"  [OK] Nueva: {data['numero']} - {data['cliente']} ({len(items)} items)")
+                elif resp.get("razon") == "items actualizados":
+                    log(f"  [UP] Items guardados: {data['numero']} ({len(items)} items)")
+                else:
+                    log(f"  [--] Ya existia: {data['numero']}")
+                return True
+            else:
+                log(f"  [ERR] Servidor ({r.status_code}): {r.text[:200]}")
+                return False
+        except requests.Timeout:
+            log(f"  [!] Timeout intento {intento}/2 — {data['numero']}")
+        except requests.RequestException as e:
+            log(f"  [ERR] Sin conexion: {e}")
+            return False
+    return False
+
+
 def ciclo():
+    # Despertar el servidor ANTES de intentar importar
+    if not despertar_servidor():
+        log("  [!] Servidor no disponible, reintentando en el proximo ciclo")
+        return
+
     folder = Path(FACTURAS_FOLDER)
     if not folder.exists():
         log(f"  [!] Carpeta no accesible: {folder}")

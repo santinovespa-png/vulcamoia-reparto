@@ -423,19 +423,35 @@ function _idsActivos() {
     return ids;
 }
 
+function _isoHoy() {
+    const d = new Date();
+    return d.getFullYear() + '-'
+        + String(d.getMonth() + 1).padStart(2, '0') + '-'
+        + String(d.getDate()).padStart(2, '0');
+}
+
 function abrirLlegadaMasiva() {
     const ids = _idsActivos();
-    document.getElementById('lm-count').textContent = ids.length + ' pedido' + (ids.length !== 1 ? 's' : '');
-    // Fecha de hoy como default
-    document.getElementById('lm-fecha').value = new Date().toLocaleDateString('en-CA');
-    document.getElementById('lm-error').style.display = 'none';
-    document.getElementById('llegada-masiva-modal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    const countEl = document.getElementById('lm-count');
+    if (countEl) countEl.textContent = ids.length + ' pedido' + (ids.length !== 1 ? 's' : '');
+
+    const fechaEl = document.getElementById('lm-fecha');
+    if (fechaEl) fechaEl.value = _isoHoy();
+
+    const errEl = document.getElementById('lm-error');
+    if (errEl) errEl.style.display = 'none';
+
+    const modal = document.getElementById('llegada-masiva-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
 }
 
 function cerrarLlegadaMasiva(e) {
     if (e && e.target !== document.getElementById('llegada-masiva-modal')) return;
-    document.getElementById('llegada-masiva-modal').style.display = 'none';
+    const modal = document.getElementById('llegada-masiva-modal');
+    if (modal) modal.style.display = 'none';
     document.body.style.overflow = '';
 }
 

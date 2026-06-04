@@ -157,6 +157,13 @@ body {
     line-height: 1;
     filter: drop-shadow(0 0 6px rgba(255,194,14,.5));
 }
+.sidebar-logo-img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
 .sidebar-brand-name {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 1.4rem;
@@ -1374,6 +1381,15 @@ body {
     display: block;
     animation: pulse 3s infinite;
     filter: drop-shadow(0 0 10px rgba(255,194,14,.4));
+}
+.login-logo-img {
+    width: 90px;
+    height: 90px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto .8rem;
+    animation: pulse 3s infinite;
+    filter: drop-shadow(0 0 14px rgba(255,194,14,.35));
 }
 .login-logo h1 {
     font-family: 'Bebas Neue', sans-serif;

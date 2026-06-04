@@ -294,15 +294,13 @@ def get_facturas(vendedor=None, estados=None, fecha=None) -> list:
         params.extend(estados)
 
     if fecha:
-        # fecha llega como YYYY-MM-DD
-        # Muestra facturas cuya fecha de emisión coincida O fueron entregadas ese día
+        # fecha llega como YYYY-MM-DD, la columna guarda DD/MM/YYYY
         try:
             from datetime import datetime as _dt
             d = _dt.strptime(fecha, "%Y-%m-%d")
             fecha_ddmmyyyy = d.strftime("%d/%m/%Y")
-            fecha_iso      = d.strftime("%Y-%m-%d")
-            query += " AND (fecha = ? OR SUBSTR(fecha_entregado, 1, 10) = ?)"
-            params.extend([fecha_ddmmyyyy, fecha_iso])
+            query += " AND fecha = ?"
+            params.append(fecha_ddmmyyyy)
         except ValueError:
             pass
 
