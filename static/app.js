@@ -429,17 +429,14 @@ function _isoHoy() {
 }
 
 function abrirLlegadaMasiva() {
-    const ids = _idsActivos();
-    if (!ids.length) {
-        mostrarToast('⚠ No hay pedidos activos visibles (pendiente o en envío)', '#f97316');
-        return;
-    }
     const input = document.getElementById('lm-fecha-picker');
     if (input) {
         input.min = _isoHoy();
         input.value = _isoHoy();
     }
-    document.getElementById('lm-modal').style.display = 'flex';
+    const modal = document.getElementById('lm-modal');
+    if (!modal) { alert('Error: modal no encontrado'); return; }
+    modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     if (input) input.focus();
 }
@@ -455,6 +452,13 @@ function confirmarLlegadaMasiva() {
     const fecha = input ? input.value : '';
     if (!fecha) {
         mostrarToast('⚠ Seleccioná una fecha', '#f97316');
+        return;
+    }
+    const ids = _idsActivos();
+    if (!ids.length) {
+        mostrarToast('⚠ No hay pedidos activos visibles (pendiente o en envío)', '#f97316');
+        document.getElementById('lm-modal').style.display = 'none';
+        document.body.style.overflow = '';
         return;
     }
     document.getElementById('lm-modal').style.display = 'none';
