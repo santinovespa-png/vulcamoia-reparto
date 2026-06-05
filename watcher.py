@@ -220,10 +220,10 @@ def ciclo():
             continue
 
         if not items:
-            log(f"  [!] Sin items en {pdf.name} — se envia igual, revisar formato PDF")
-        else:
-            log(f"  [.] {pdf.name} -> {len(items)} items, vendedor {vendedor_pdf}")
+            log(f"  [!] Sin items en {pdf.name} — esperando próximo ciclo (no se sube sin items)")
+            continue
 
+        log(f"  [.] {pdf.name} -> {len(items)} items, vendedor {vendedor_pdf}")
         enviar(data, items)
 
 

@@ -199,12 +199,13 @@ async def importar_factura(request: Request):
         raise HTTPException(status_code=400, detail="Faltan datos de la factura")
 
     if db.factura_exists(data["numero"]):
-        # Si la factura existe pero NO tiene items, actualizarlos ahora
+        # Si la factura existe y llegan items, actualizarlos si no tiene o si force_items=True
+        force_items = body.get("force_items", False)
         if items:
             factura = db.get_factura_by_numero(data["numero"])
             if factura:
                 existing = db.get_items(factura["id"])
-                if not existing:
+                if not existing or force_items:
                     db.insert_items(factura["id"], items)
                     return {"ok": True, "importada": False, "razon": "items actualizados",
                             "numero": data["numero"]}
