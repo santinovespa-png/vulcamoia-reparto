@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clientes — Reparto BA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .clientes-table-wrap {
+            overflow-x: auto;
+            border-radius: 16px;
+            border: 1px solid var(--border-s);
+            margin-top: 1.5rem;
+        }
+        .clientes-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+        .clientes-table thead tr {
+            background: var(--dark-2);
+            border-bottom: 1px solid var(--border-s);
+        }
+        .clientes-table th {
+            padding: .85rem 1rem;
+            text-align: left;
+            font-size: .75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .clientes-table td {
+            padding: .85rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            vertical-align: middle;
+        }
+        .clientes-table tbody tr:last-child td { border-bottom: none; }
+        .clientes-table tbody tr:hover { background: rgba(255,255,255,.03); }
+        .cliente-name {
+            font-weight: 700;
+            color: var(--text);
+            font-size: .95rem;
+        }
+        .cliente-domicilio {
+            font-size: .8rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .badge-num {
+            display: inline-block;
+            padding: .25rem .65rem;
+            border-radius: 20px;
+            font-size: .8rem;
+            font-weight: 700;
+            min-width: 32px;
+            text-align: center;
+        }
+        .badge-total   { background: rgba(255,255,255,.08); color: var(--text); }
+        .badge-activo  { background: rgba(234,179,8,.15);   color: #eab308; }
+        .badge-entregado { background: rgba(34,197,94,.15); color: #22c55e; }
+        .producto-top {
+            font-size: .82rem;
+            color: var(--text-muted);
+            max-width: 220px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .fecha-chip {
+            font-size: .8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .page-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: .5rem;
+        }
+        .total-chip {
+            background: var(--dark-2);
+            border: 1px solid var(--border-s);
+            border-radius: 20px;
+            padding: .3rem .9rem;
+            font-size: .82rem;
+            color: var(--text-muted);
+        }
+        .search-input {
+            background: var(--dark-2);
+            border: 1px solid var(--border-s);
+            border-radius: 10px;
+            padding: .5rem 1rem;
+            color: var(--text);
+            font-size: .9rem;
+            width: 240px;
+            outline: none;
+            transition: border-color .15s;
+        }
+        .search-input:focus { border-color: var(--accent); }
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body class="admin-body">
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <img src="/static/logo.png" alt="Logo" onerror="this.style.display='none'"
+                 style="width:36px;height:36px;object-fit:contain;border-radius:50%;flex-shrink:0">
+            <div>
+                <span class="sidebar-brand-name">VULCAMOIA</span>
+                <span class="sidebar-brand-sub">Reparto Buenos Aires</span>
+            </div>
+        </div>
+        <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+    </div>
+
+    <p class="sidebar-section-label">Navegación</p>
+    <nav class="sidebar-nav">
+        <a href="/admin" class="sidebar-link">
+            <span class="sidebar-link-icon">⚡</span>
+            <span>Dashboard</span>
+        </a>
+        <a href="/clientes" class="sidebar-link is-active">
+            <span class="sidebar-link-icon">👥</span>
+            <span>Clientes</span>
+        </a>
+    </nav>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="sidebar-footer">
+        <div class="sidebar-user-chip">
+            <div class="sidebar-user-dot"></div>
+            <span>{{ user.display }}</span>
+        </div>
+        <a href="/logout" class="sidebar-logout-btn">Cerrar sesión →</a>
+    </div>
+</aside>
+
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+<!-- ===== MAIN ===== -->
+<div class="layout-main">
+
+    <header class="header" id="header">
+        <div class="header-content">
+            <div class="header-left">
+                <button class="hamburger" onclick="toggleSidebar()" aria-label="Menú">
+                    <span></span><span></span><span></span>
+                </button>
+                <span class="header-title">Clientes</span>
+            </div>
+            <div class="header-right">
+                <span class="header-user">{{ user.display }}</span>
+                <a href="/logout" class="btn btn-outline btn-sm">Salir</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <div class="page-header-row">
+            <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+                <h2 style="margin:0;font-size:1.3rem">👥 Resumen por cliente</h2>
+                <span class="total-chip">{{ clientes|length }} clientes</span>
+            </div>
+            <input type="text" class="search-input" placeholder="🔍 Buscar cliente..."
+                   oninput="filtrarClientes(this.value)" id="search-input">
+        </div>
+
+        {% if clientes %}
+        <div class="clientes-table-wrap">
+            <table class="clientes-table" id="clientes-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Total pedidos</th>
+                        <th>Activos</th>
+                        <th>Entregados</th>
+                        <th>Producto más pedido</th>
+                        <th>Último pedido</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in clientes %}
+                    <tr data-cliente="{{ c.cliente | lower }}">
+                        <td>
+                            <div class="cliente-name">{{ c.cliente }}</div>
+                            {% if c.domicilio %}
+                            <div class="cliente-domicilio">📍 {{ c.domicilio }}</div>
+                            {% endif %}
+                            {% if c.cuit %}
+                            <div class="cliente-domicilio">CUIT: {{ c.cuit }}</div>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge-num badge-total">{{ c.total_pedidos }}</span></td>
+                        <td>
+                            {% if c.pedidos_activos > 0 %}
+                            <span class="badge-num badge-activo">{{ c.pedidos_activos }}</span>
+                            {% else %}
+                            <span style="color:var(--text-muted);font-size:.8rem">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.pedidos_entregados > 0 %}
+                            <span class="badge-num badge-entregado">{{ c.pedidos_entregados }}</span>
+                            {% else %}
+                            <span style="color:var(--text-muted);font-size:.8rem">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.producto_top %}
+                            <span class="producto-top" title="{{ c.producto_top }}">{{ c.producto_top }}</span>
+                            {% else %}
+                            <span style="color:var(--text-muted);font-size:.8rem">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.ultimo_pedido %}
+                            <span class="fecha-chip">{{ c.ultimo_pedido[:10] }}</span>
+                            {% else %}
+                            <span style="color:var(--text-muted);font-size:.8rem">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div style="font-size:3rem;margin-bottom:1rem">👥</div>
+            <div style="font-size:1.1rem;font-weight:700;margin-bottom:.5rem">Sin clientes registrados</div>
+            <div>Los clientes aparecerán aquí cuando se importen facturas.</div>
+        </div>
+        {% endif %}
+
+    </main>
+</div>
+
+<script>
+function toggleSidebar() {
+    const sidebar  = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.contains('is-open');
+    sidebar.classList.toggle('is-open', !isOpen);
+    backdrop && backdrop.classList.toggle('is-visible', !isOpen);
+    document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+
+function filtrarClientes(q) {
+    const val = q.toLowerCase().trim();
+    document.querySelectorAll('#clientes-table tbody tr').forEach(function(tr) {
+        tr.style.display = (!val || tr.dataset.cliente.includes(val)) ? '' : 'none';
+    });
+}
+
+(function initScrollHeader() {
+    const header = document.getElementById('header');
+    if (!header) return;
+    window.addEventListener('scroll', function() {
+        header.classList.toggle('scrolled', window.scrollY > 10);
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>

@@ -384,3 +384,33 @@ def save_foto(factura_id: int, data_url: str):
 def get_foto(factura_id: int):
     row = fetchone("SELECT foto_remito FROM facturas WHERE id = ?", (factura_id,))
     return row["foto_remito"] if row else None
+
+
+# ---------------------------------------------------------------------------
+# Resumen por cliente
+# ---------------------------------------------------------------------------
+
+def get_resumen_clientes() -> list:
+    """Devuelve estadísticas agrupadas por cliente."""
+    return fetchall("""
+        SELECT
+            f.cliente,
+            f.domicilio,
+            f.cuit,
+            COUNT(f.id)                                              AS total_pedidos,
+            SUM(CASE WHEN f.estado IN ('pendiente','en_envio','listo','en_camino') THEN 1 ELSE 0 END) AS pedidos_activos,
+            SUM(CASE WHEN f.estado = 'entregado' THEN 1 ELSE 0 END) AS pedidos_entregados,
+            MAX(f.created_at)                                        AS ultimo_pedido,
+            (
+                SELECT i.detalle
+                FROM items i
+                JOIN facturas f2 ON f2.id = i.factura_id
+                WHERE f2.cliente = f.cliente
+                GROUP BY i.detalle
+                ORDER BY SUM(i.cantidad) DESC
+                LIMIT 1
+            ) AS producto_top
+        FROM facturas f
+        GROUP BY f.cliente
+        ORDER BY total_pedidos DESC
+    """)

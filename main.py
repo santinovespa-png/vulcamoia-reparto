@@ -181,6 +181,19 @@ async def repartidor_view(request: Request):
     )
 
 
+@app.get("/clientes", response_class=HTMLResponse)
+async def clientes_view(request: Request):
+    user = current_user(request)
+    if not user or user["role"] != "admin":
+        return RedirectResponse("/login", status_code=303)
+    clientes = db.get_resumen_clientes()
+    return templates.TemplateResponse("clientes.html", {
+        "request": request,
+        "user": user,
+        "clientes": clientes,
+    })
+
+
 # ---------------------------------------------------------------------------
 # API — watcher local y JS del frontend
 # ---------------------------------------------------------------------------
