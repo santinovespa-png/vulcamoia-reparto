@@ -132,7 +132,7 @@ document.addEventListener('keydown', e => {
         const formModal = document.getElementById('form-modal');
         if (formModal && formModal.style.display !== 'none') cerrarFormPedido();
         const lmModal = document.getElementById('lm-modal');
-        if (lmModal && lmModal.style.display !== 'none') cerrarLlegadaMasiva();
+        if (lmModal) { lmModal.remove(); document.body.style.overflow = ''; }
     }
 });
 
@@ -410,13 +410,17 @@ document.addEventListener('click', function(e) {
 })();
 
 // =========================================================
-//  LLEGADA MASIVA — date picker nativo, aplica automático
+//  LLEGADA MASIVA
 // =========================================================
+function _isoHoy() {
+    return new Date().toLocaleDateString('en-CA');
+}
+
 function _idsActivos() {
     const ids = [];
-    document.querySelectorAll('.factura-card').forEach(card => {
+    document.querySelectorAll('.factura-card').forEach(function(card) {
         if (card.style.display === 'none') return;
-        const estado = card.dataset.estado;
+        var estado = card.dataset.estado;
         if (estado === 'pendiente' || estado === 'en_envio') {
             ids.push(parseInt(card.dataset.id));
         }
@@ -424,53 +428,77 @@ function _idsActivos() {
     return ids;
 }
 
-function _isoHoy() {
-    return new Date().toLocaleDateString('en-CA');
-}
-
 function abrirLlegadaMasiva() {
-    const input = document.getElementById('lm-fecha-picker');
-    if (input) {
-        input.min = _isoHoy();
-        input.value = _isoHoy();
-    }
-    const modal = document.getElementById('lm-modal');
-    if (!modal) { alert('Error: modal no encontrado'); return; }
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    if (input) input.focus();
-}
+    // Eliminar modal previo si existe
+    var viejo = document.getElementById('lm-modal');
+    if (viejo) viejo.remove();
 
-function cerrarLlegadaMasiva(e) {
-    if (e && e.target !== document.getElementById('lm-modal')) return;
-    document.getElementById('lm-modal').style.display = 'none';
-    document.body.style.overflow = '';
-}
+    // Crear overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'lm-modal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center';
 
-function confirmarLlegadaMasiva() {
-    const input = document.getElementById('lm-fecha-picker');
-    const fecha = input ? input.value : '';
-    if (!fecha) {
-        mostrarToast('⚠ Seleccioná una fecha', '#f97316');
-        return;
-    }
-    const ids = _idsActivos();
-    if (!ids.length) {
-        mostrarToast('⚠ No hay pedidos activos visibles (pendiente o en envío)', '#f97316');
-        document.getElementById('lm-modal').style.display = 'none';
+    // Crear card
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#1e1e2e;border:1px solid #444;border-radius:16px;padding:24px;width:300px;max-width:90vw';
+
+    // Título
+    var titulo = document.createElement('h3');
+    titulo.textContent = '📅 Llegada masiva';
+    titulo.style.cssText = 'margin:0 0 12px;color:#fff;font-size:1.1rem';
+
+    // Descripción
+    var desc = document.createElement('p');
+    desc.textContent = 'Seleccioná la fecha de llegada para todos los pedidos activos.';
+    desc.style.cssText = 'margin:0 0 16px;color:#aaa;font-size:.88rem';
+
+    // Input fecha
+    var input = document.createElement('input');
+    input.type = 'date';
+    input.id = 'lm-fecha-picker';
+    input.value = _isoHoy();
+    input.min = _isoHoy();
+    input.style.cssText = 'width:100%;padding:8px 12px;border-radius:8px;border:1px solid #555;background:#2a2a3e;color:#fff;font-size:1rem;box-sizing:border-box;margin-bottom:16px';
+
+    // Botones
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;justify-content:flex-end';
+
+    var btnCancelar = document.createElement('button');
+    btnCancelar.textContent = 'Cancelar';
+    btnCancelar.style.cssText = 'padding:8px 16px;border-radius:8px;border:1px solid #555;background:transparent;color:#fff;cursor:pointer;font-size:.9rem';
+    btnCancelar.onclick = function() { overlay.remove(); document.body.style.overflow = ''; };
+
+    var btnConfirmar = document.createElement('button');
+    btnConfirmar.textContent = 'Confirmar';
+    btnConfirmar.style.cssText = 'padding:8px 16px;border-radius:8px;border:none;background:#f59e0b;color:#000;font-weight:700;cursor:pointer;font-size:.9rem';
+    btnConfirmar.onclick = function() {
+        var fecha = input.value;
+        if (!fecha) { alert('Seleccioná una fecha'); return; }
+        overlay.remove();
         document.body.style.overflow = '';
-        return;
-    }
-    document.getElementById('lm-modal').style.display = 'none';
-    document.body.style.overflow = '';
-    aplicarLlegadaMasiva(fecha);
+        aplicarLlegadaMasiva(fecha);
+    };
+
+    // Cerrar al hacer click fuera de la card
+    overlay.onclick = function(e) {
+        if (e.target === overlay) { overlay.remove(); document.body.style.overflow = ''; }
+    };
+
+    btnRow.appendChild(btnCancelar);
+    btnRow.appendChild(btnConfirmar);
+    card.appendChild(titulo);
+    card.appendChild(desc);
+    card.appendChild(input);
+    card.appendChild(btnRow);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    input.focus();
 }
 
 async function aplicarLlegadaMasiva(fecha) {
     if (!fecha) return;
-    // Ocultar el input de vuelta
-    const input = document.getElementById('lm-fecha-picker');
-    if (input) input.style.cssText = 'position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;width:1px;height:1px';
 
     const ids = _idsActivos();
     if (!ids.length) return;
