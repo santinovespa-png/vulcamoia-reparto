@@ -347,10 +347,26 @@
     </div>
 </div>
 
-<!-- Input oculto para llegada masiva — se abre con showPicker() al tocar el botón -->
-<input type="date" id="lm-fecha-picker"
-       style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;width:1px;height:1px"
-       onchange="aplicarLlegadaMasiva(this.value)">
+<!-- Modal llegada masiva -->
+<div id="lm-modal" class="modal-overlay form-modal-overlay" style="display:none"
+     onclick="cerrarLlegadaMasiva(event)">
+    <div class="form-modal-card" onclick="event.stopPropagation()" style="max-width:360px">
+        <div class="form-modal-header">
+            <h2>📅 Llegada masiva</h2>
+            <button class="form-modal-close" onclick="cerrarLlegadaMasiva()">✕</button>
+        </div>
+        <div class="form-modal-body">
+            <div class="form-group">
+                <label for="lm-fecha-picker">Fecha de llegada para todos los pedidos activos</label>
+                <input type="date" id="lm-fecha-picker" class="form-input">
+            </div>
+        </div>
+        <div class="form-modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarLlegadaMasiva()">Cancelar</button>
+            <button class="btn btn-envio ripple-host" onclick="confirmarLlegadaMasiva()">Confirmar</button>
+        </div>
+    </div>
+</div>
 
 <script src="/static/app.js"></script>
 </body>

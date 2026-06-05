@@ -131,6 +131,8 @@ document.addEventListener('keydown', e => {
         cerrarModal();
         const formModal = document.getElementById('form-modal');
         if (formModal && formModal.style.display !== 'none') cerrarFormPedido();
+        const lmModal = document.getElementById('lm-modal');
+        if (lmModal && lmModal.style.display !== 'none') cerrarLlegadaMasiva();
     }
 });
 
@@ -422,6 +424,10 @@ function _idsActivos() {
     return ids;
 }
 
+function _isoHoy() {
+    return new Date().toLocaleDateString('en-CA');
+}
+
 function abrirLlegadaMasiva() {
     const ids = _idsActivos();
     if (!ids.length) {
@@ -429,21 +435,31 @@ function abrirLlegadaMasiva() {
         return;
     }
     const input = document.getElementById('lm-fecha-picker');
-    if (!input) return;
-    input.min = _isoHoy();
-    input.value = '';
-    // Abrir el date picker nativo del sistema operativo
-    try {
-        input.showPicker();
-    } catch (e) {
-        // Fallback para navegadores que no soportan showPicker
-        input.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;opacity:1;pointer-events:auto;width:200px;height:40px;font-size:1rem';
-        input.focus();
-        input.click();
-        setTimeout(() => {
-            input.style.cssText = 'position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;width:1px;height:1px';
-        }, 5000);
+    if (input) {
+        input.min = _isoHoy();
+        input.value = _isoHoy();
     }
+    document.getElementById('lm-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    if (input) input.focus();
+}
+
+function cerrarLlegadaMasiva(e) {
+    if (e && e.target !== document.getElementById('lm-modal')) return;
+    document.getElementById('lm-modal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+function confirmarLlegadaMasiva() {
+    const input = document.getElementById('lm-fecha-picker');
+    const fecha = input ? input.value : '';
+    if (!fecha) {
+        mostrarToast('⚠ Seleccioná una fecha', '#f97316');
+        return;
+    }
+    document.getElementById('lm-modal').style.display = 'none';
+    document.body.style.overflow = '';
+    aplicarLlegadaMasiva(fecha);
 }
 
 async function aplicarLlegadaMasiva(fecha) {
